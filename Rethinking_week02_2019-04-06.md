@@ -18,9 +18,7 @@ Assignment:
 Optional: the rest of the problems.
 
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
+
 #### Notes, video Lecture 02
 
 stopped around minute 49.  Got a bit confused with grid approximations; hope reading helps
@@ -40,19 +38,42 @@ p27:  So it’ll be helpful to define p as the proportion of marbles that are bl
 
 I guess p in this case is simply the fraction of marbles in bag that are blue.  (Yes, that is the proportion!)
 
-```{r}
+
+```r
 9+27+32
+```
+
+```
+## [1] 68
+```
+
+```r
 9/68
+```
+
+```
+## [1] 0.1323529
 ```
 in this case, plausibility is the new estimate for hte proporiton of marbles in bag that are blue.
 
 #### does it work the following way?
 
-```{r}
+
+```r
 ways <- 3 + 8 + 9
 3/ways  #0.15
-8/ways # 0.4
+```
 
+```
+## [1] 0.15
+```
+
+```r
+8/ways # 0.4
+```
+
+```
+## [1] 0.4
 ```
 Yes, this is the same thing!
 See bottom of page 27 to finish
@@ -65,9 +86,21 @@ parameter = unobserved variable; can be inferred from other variables.
 "likelihood" won't be used much. but would be distribution function applied to observed variable.
 binomial distributin = coin tossing distribution. every toss independent, probability same on each toss
 
-```{r}
+
+```r
 dbinom( 6 , size=9 , prob=0.5 )
+```
+
+```
+## [1] 0.1640625
+```
+
+```r
 dbinom( 6 , size=9 , prob=0.7 )
+```
+
+```
+## [1] 0.2668279
 ```
 so below: just tested 1000 values for probability.  
 
@@ -79,7 +112,8 @@ Bayesian approaches get to use Bayes’ theorem more generally, to quantify unce
 
 R code 2.3
 
-```{r}
+
+```r
 # define grid
 p_grid <- seq( from=0 , to=1 , length.out=20 )
 # define prior
@@ -93,14 +127,22 @@ posterior <- unstd.posterior / sum(unstd.posterior)
 ```
 
 plot it
-```{r}
+
+```r
 plot( p_grid , posterior , type="b" ,
 xlab="probability of water" , ylab="posterior probability" ) + mtext( "20 points" )
 ```
 
+![](Rethinking_week02_2019-04-06_files/figure-html/unnamed-chunk-5-1.png)<!-- -->
+
+```
+## integer(0)
+```
+
 Rcode 2.5
 
-```{r}
+
+```r
 prior <- ifelse( p_grid < 0.5 , 0 , 1 ) 
 likelihood <- dbinom( 6 , size=9 , prob=p_grid )
 # compute product of likelihood and prior
@@ -109,7 +151,15 @@ unstd.posterior <- likelihood * prior
 posterior <- unstd.posterior / sum(unstd.posterior)
 plot( p_grid , posterior , type="b" ,
 xlab="probability of water" , ylab="posterior probability" ) + mtext( "square.prior" )
+```
 
+![](Rethinking_week02_2019-04-06_files/figure-html/unnamed-chunk-6-1.png)<!-- -->
+
+```
+## integer(0)
+```
+
+```r
 prior <- exp( -5*abs( p_grid - 0.5 ) )
 likelihood <- dbinom( 6 , size=9 , prob=p_grid )
 # compute product of likelihood and prior
@@ -120,12 +170,19 @@ plot( p_grid , posterior , type="b" ,
 xlab="probability of water" , ylab="posterior probability" ) + mtext( "weird.prior" )
 ```
 
+![](Rethinking_week02_2019-04-06_files/figure-html/unnamed-chunk-6-2.png)<!-- -->
+
+```
+## integer(0)
+```
+
 quadratic approximations - p 42
 Gaussian distribution is convenient, because it can be completely described by only two numbers: the location of its center (mean) and its spread (variance).
 
 
 
-```{r}
+
+```r
 ?dbinom
 p_grid <- seq(0, 1, length.out = 1000)
 prob_p <- rep(1,1000)
@@ -134,8 +191,43 @@ posterior <- prob_data *prob_p
 posterior <- posterior/sum(posterior)
 ```
 Rcode 2.6
-```{r}
+
+```r
 library(rethinking)
+```
+
+```
+## Loading required package: rstan
+```
+
+```
+## Loading required package: ggplot2
+```
+
+```
+## Loading required package: StanHeaders
+```
+
+```
+## rstan (Version 2.18.2, GitRev: 2e1f913d3ca3)
+```
+
+```
+## For execution on a local, multicore CPU with excess RAM we recommend calling
+## options(mc.cores = parallel::detectCores()).
+## To avoid recompilation of unchanged Stan programs, we recommend calling
+## rstan_options(auto_write = TRUE)
+```
+
+```
+## Loading required package: parallel
+```
+
+```
+## rethinking (Version 1.88)
+```
+
+```r
 globe.qa <- quap(
   alist(
     W ~ dbinom( W+L ,p) , # binomial likelihood
@@ -145,24 +237,34 @@ globe.qa <- quap(
 
 # display summary of quadratic approximation
 precis( globe.qa )  # gives me 89% percentile interval
+```
 
+```
+##        mean        sd      5.5%     94.5%
+## p 0.6666664 0.1571338 0.4155362 0.9177966
+```
+
+```r
 ?alist
 ```
 Rcode 2.7
-```{r}
+
+```r
 W <- 6
 L <- 3
 curve( dbeta( x , W+1 , L+1 ) , from=0 , to=1 )
 # quadratic approximation
 curve( dnorm( x , 0.67 , 0.16 ) , lty=2 , add=TRUE )
 ```
+
+![](Rethinking_week02_2019-04-06_files/figure-html/unnamed-chunk-9-1.png)<!-- -->
 This doesn't plot as expcted.    p 44
 
 MCMC example
 
 Rcode 2.8
-```{r}
 
+```r
 n_samples <- 1000 
 p <- rep( NA , n_samples )
 p[1] <- 0.5
@@ -180,8 +282,6 @@ for ( i in 2:n_samples ) {
 
 #dens( p , xlim=c(0,1) )
 #curve( dbeta( x , W+1 , L+1 ) , lty=2 , add=TRUE )
-
-
 ```
 
 # Problems
@@ -207,7 +307,8 @@ for ( i in 2:n_samples ) {
 (2) W, W, W, L
 (3) L, W, W, L, W, W, W
 
-```{r}
+
+```r
 # define first grid, with 3 W selected
 p_grid <- seq( from=0 , to=1 , length.out=20 )
 # define prior
@@ -221,8 +322,15 @@ posterior.1 <- unstd.posterior.1 / sum(unstd.posterior.1)
 
 plot( p_grid , posterior.1 , type="b" , xlab="probability of water" , ylab="posterior probability" ) + mtext( "3 tosses" )
 ```
+
+![](Rethinking_week02_2019-04-06_files/figure-html/unnamed-chunk-11-1.png)<!-- -->
+
+```
+## integer(0)
+```
 4 tosses, W, W, W, L
-```{r}
+
+```r
 # define first grid, with 3 W selected
 p_grid <- seq( from=0 , to=1 , length.out=20 )
 # define prior
@@ -237,8 +345,15 @@ posterior.2 <- unstd.posterior.2 / sum(unstd.posterior.2)
 plot( p_grid , posterior.2 , type="b" , xlab="probability of water" , ylab="posterior probability" ) + mtext( "4 tosses" )
 ```
 
+![](Rethinking_week02_2019-04-06_files/figure-html/unnamed-chunk-12-1.png)<!-- -->
+
+```
+## integer(0)
+```
+
 7 tosses, L, W, W, L, W, W, W
-```{r}
+
+```r
 # define first grid, with 3 W selected
 p_grid <- seq( from=0 , to=1 , length.out=20 )
 # define prior
@@ -252,12 +367,19 @@ posterior.3 <- unstd.posterior.3 / sum(unstd.posterior.3)
 
 plot( p_grid , posterior.3 , type="b" , xlab="probability of water" , ylab="posterior probability" ) + mtext( "7 tosses" )
 ```
+
+![](Rethinking_week02_2019-04-06_files/figure-html/unnamed-chunk-13-1.png)<!-- -->
+
+```
+## integer(0)
+```
 That is a little bit narrower than the preceding chart.
 
 ### 2M2. Now assume a prior for p that is equal to zero when p < 0.5 and is a positive constant when p >= 0:5. Again compute and plot the grid approximate posterior distribution for each of the sets of observations in the problem just above.
 
 As above, but change the formula for the prior
-```{r}
+
+```r
 # define first grid, with 3 W selected
 p_grid <- seq( from=0 , to=1 , length.out=20 )
 # define prior
@@ -272,8 +394,15 @@ posterior.1 <- unstd.posterior.1 / sum(unstd.posterior.1)
 plot( p_grid , posterior.1 , type="b" , xlab="probability of water" , ylab="posterior probability" ) + mtext( "3 tosses" )
 ```
 
+![](Rethinking_week02_2019-04-06_files/figure-html/unnamed-chunk-14-1.png)<!-- -->
+
+```
+## integer(0)
+```
+
 4 tosses, W, W, W, L
-```{r}
+
+```r
 # compute likelihood at each value in grid
 likelihood.2 <- dbinom( 3 , size=4 , prob=p_grid )
 # compute product of likelihood and prior
@@ -284,9 +413,15 @@ posterior.2 <- unstd.posterior.2 / sum(unstd.posterior.2)
 plot( p_grid , posterior.2 , type="b" , xlab="probability of water" , ylab="posterior probability" ) + mtext( "4 tosses" )
 ```
 
-7 tosses, L, W, W, L, W, W, W
-```{r}
+![](Rethinking_week02_2019-04-06_files/figure-html/unnamed-chunk-15-1.png)<!-- -->
 
+```
+## integer(0)
+```
+
+7 tosses, L, W, W, L, W, W, W
+
+```r
 # compute likelihood at each value in grid
 likelihood.3 <- dbinom( 5 , size=7 , prob=p_grid )
 # compute product of likelihood and prior
@@ -295,6 +430,12 @@ unstd.posterior.3 <- likelihood.3 * prior.2
 posterior.3 <- unstd.posterior.3 / sum(unstd.posterior.3)
 
 plot( p_grid , posterior.3 , type="b" , xlab="probability of water" , ylab="posterior probability" ) + mtext( "7 tosses" )
+```
+
+![](Rethinking_week02_2019-04-06_files/figure-html/unnamed-chunk-16-1.png)<!-- -->
+
+```
+## integer(0)
 ```
 ### 2M3. Suppose there are two globes, one for Earth and one for Mars. 
 The Earth globe is 70% covered in water. The Mars globe is 100% land. Further suppose that one of these globes—you don’t know which—was tossed in the air and produced a “land” observation. Assume that each globe was equally likely to be tossed. Show that the posterior probability that the globe was the Earth, conditional on seeing “land” (Pr(Earth|land)), is 0.23.
@@ -312,7 +453,8 @@ The prior expectation that Earth was tossed = 0.5
 
 Using the binomical, if earth was tossed, Pr(land|Earth) = 
 
-```{r}
+
+```r
 prior.earth <- 0.5
 likelihood.earth <- dbinom(1, size = 1, prob = .3)
 unstd.posterior <- likelihood.earth * prior.earth # 0.15
@@ -320,6 +462,10 @@ avg.post <- (1 + 0.3)/2
 
 post.prob <- unstd.posterior/avg.post 
 post.prob  # 0.23
+```
+
+```
+## [1] 0.2307692
 ```
 Tricky bit: properly calculate the average probability of getting the result 'land' with one throw
 
