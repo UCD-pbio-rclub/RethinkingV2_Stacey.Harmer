@@ -193,7 +193,9 @@ for ( i in 2:n_samples ) {
 **See p 37**
 
 ### 2E1. Which of the expressions below correspond to the statement: the probability of rain on Monday?
-(2) Pr(rain| Monday)
+(2) Pr(rain | Monday)  
+(note that | == 'given' ) 
+(4) also seems fine.  (probabilitiy of a rainy Monday / probability of Monday)
 
 ### 2E2. Which of the following statements corresponds to the expression: Pr(Monday|rain)?
 (3) The probability that it is Monday, given that it is raining.  (I think)
@@ -218,6 +220,7 @@ likelihood.1 <- dbinom( 3 , size=3 , prob=p_grid )
 unstd.posterior.1 <- likelihood.1 * prior
 # standardize the posterior, so it sums to 1
 posterior.1 <- unstd.posterior.1 / sum(unstd.posterior.1)
+sum(posterior.1)  # sums to 1 !!
 
 plot( p_grid , posterior.1 , type="b" , xlab="probability of water" , ylab="posterior probability" ) + mtext( "3 tosses" )
 ```
@@ -260,6 +263,9 @@ As above, but change the formula for the prior
 ```{r}
 # define first grid, with 3 W selected
 p_grid <- seq( from=0 , to=1 , length.out=20 )
+
+prior.john <- ifelse(p_grid < 0.5 , 0 , 1)
+
 # define prior
 prior.2 <- c(rep( 0 , 10 ), rep(1, 10))
 # compute likelihood at each value in grid
@@ -316,21 +322,28 @@ Using the binomical, if earth was tossed, Pr(land|Earth) =
 prior.earth <- 0.5
 likelihood.earth <- dbinom(1, size = 1, prob = .3)
 unstd.posterior <- likelihood.earth * prior.earth # 0.15
-avg.post <- (1 + 0.3)/2
+avg.post <- (1 + 0.3)/2  # 0.65
 
 post.prob <- unstd.posterior/avg.post 
 post.prob  # 0.23
 ```
 Tricky bit: properly calculate the average probability of getting the result 'land' with one throw
 
+Julin answer
+```{r}
+prior <- c(.5, .5)
+prob <- c(0.7, 0)
+likeihood <- dbinom(0, 1, prob)
+unstd.post <- likelihood * prior
+post <- unstd.post / sum(unstd.post)
+post
+
+```
+
 ### 2M2M4. Suppose you have a deck with only three cards. Each card has two sides, and each side is either black or white. 
 One card has two black sides. The second card has one black and one white side. The
 third card has two white sides. Now suppose all three cards are placed in a bag and shuffled. Someone
-reaches into the bag and pulls out a card and places it flat on a table. A black side is shown facing up,
-but you don’t know the color of the side facing down. Show that the probability that the other side is
-also black is 2/3. Use the counting method (Section 2 of the chapter) to approach this problem. This
-means counting up the ways that each card could produce the observed data (a black side facing up
-on the table).
+reaches into the bag and pulls out a card and places it flat on a table. A black side is shown facing up, but you don’t know the color of the side facing down. Show that the probability that the other side is also black is 2/3. Use the counting method (Section 2 of the chapter) to approach this problem. This means counting up the ways that each card could produce the observed data (a black side facing up on the table).
 
 OK, let's think about this.  Overall, there are 6 card sides to consider. The ways to obtain a black side initially are:
 
@@ -346,5 +359,35 @@ Of these 5 ways, 4 of them are from the BB cards.  So 4/5.
 The probability the second side is also B is 0.8  (4 out of 5)
 
 
+### 2M6. 
+Imagine that black ink is heavy, and so cards with black sides are heavier than cards with white
+sides. As a result, it’s less likely that a card with black sides is pulled from the bag. So again assume there are three cards: B/B, B/W, and W/W. After experimenting a number of times, you conclude that for every way to pull the B/B card from the bag, there are 2 ways to pull the B/W card and 3 ways to pull the W/W card. Again suppose that a card is pulled and a black side appears face up. Show that
+the probability the other side is black is now 0.5. Use the counting method, as before.
 
+```{r}
+prior_BB <- 1/6
+prior_BW <- 2/6
+prior_WW <- 3/6  # we know this wasn't chosen
 
+# now, if first side is black, the prior likelihood of BB is 1/3 and BW is 2/3
+
+likelihood_BB <- 2/3  #given above.
+
+joint_prob <- likelihood_BB * prior_BB
+
+### see Julin's answer.  My approahc is wrong, becaues I was multilplying the wrong things.  His solutoin is nice example of ocunting method.  
+
+```
+
+Next: Chapter 3
+
+#### Random notes
+It turns out the Poisson distribution is just a special case of the binomial, where the number of trials is large, and the probability of success in any given one is small.
+
+Poisson distribution will always have right skewness; if lambda is large, distributions will be close to symmetric.
+(Lambda is an average number of events occurring in the specified period of time. so = prob*time_interval)
+
+Binomial distribution:
+https://medium.com/@geekrodion/12-binomial-distribution-4c02af6d17fa
+
+why is count data appropriately modeled by binomial distribution?
