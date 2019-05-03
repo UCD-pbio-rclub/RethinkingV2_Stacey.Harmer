@@ -1,0 +1,150 @@
+---
+title: "Rethinking_week04_2019-04-25.Rmd"
+author: "Stacey Harmer"
+date: "4/26/2019"
+output: 
+  html_document: 
+    keep_md: yes
+---
+
+## Video: Lecture 3
+
+Quadratic approximation - can use small amount of informaiton to define entire curve.  
+
+quap uses MAP
+```{r}
+dunif(51, 0,50)
+dunif(51, 0, 51)
+```
+log-normal distrbution (  rlnorm )
+resuies all sampled values be positive.  
+
+```{r}
+
+x <- rlnorm(1000, 0, 1)
+dens(x)
+dens(log(x))
+```
+
+
+## Reading: Chapter 4 through section 4.4.2  / page 98
+
+Problems: 4E1-4E5; 4M1, 4M2, 4M3
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+By “linear regression,”
+we will mean a family of simple statistical golems that attempt to learn about the mean and
+variance of some measurement, using an additive combination of other measurements.
+
+## 4.1  normal distibutions
+
+```{r}
+?runif
+
+pos <- replicate(1000, sum(runif(16, -1, 1)))
+hist(pos)
+plot(density(pos))
+
+pos <- replicate(1000, sum(runif(1e4, -1, 1))^2)
+hist(pos)
+plot(density(pos))
+
+# that is weird, but makes sense because centered near zero.
+
+
+pos <- replicate(1000, sum(runif(1e4, -1, 1)^2))
+hist(pos)
+plot(density(pos))
+# back to normal
+```
+
+
+multiplicative
+
+```{r}
+library(rethinking)
+growth <- replicate( 10000 , prod( 1 + runif(12,0,0.1) ) )
+dens( growth , norm.comp=TRUE )
+
+```
+
+note that:
+Multiplying small numbers is approximately the same as addition. For
+example, if there are two loci with alleles increasing growth by 10% each, the product is:
+
+
+```{r}
+
+big <- replicate( 10000 , prod( 1 + runif(12,0,0.5) ) )  # effects up to 0.5
+dens(big)
+small <- replicate( 10000 , prod( 1 + runif(12,0,0.01) ) )  # effects up to 0.01;  numbers close to 1!
+dens(small)
+
+```
+
+log multilplication  - copes with big deviations
+
+```{r}
+log.big <- replicate( 10000 , log(prod(1 + runif(12,0,0.5))) )
+dens(log.big)
+# can I transform earlier result?
+dens(log(big))  #Yep
+
+```
+Hey, note that 
+And repeatedly adding finite fluctuations
+results in a distribution of sums that have shed all information about the underlying process,
+aside from mean and spread
+
+Gaussian distribution has quadratic shape.
+
+```{r}
+curve( exp( -x^2 ) , from=-3 , to=3 )
+curve(  -x^2  , from=-3 , to=3 )
+```
+keep in mind Gaussian is continuous, a probability density funciton denoted with p or even with f.
+while binomial requires integer (and is a probability mass function, Pr)
+
+he defines tau on page 76.  
+
+## 4.2  Describing models.
+
+data = what we can observe
+parameters = unobservable things like rates and averages. 
+variables = defined either in terms of other varialbles or in terms of prabilbitly distriution.  
+
+generally, ~ means 'is distributed' 
+
+```{r}
+p_grid <- seq(from=0,to=1,length.out=100)
+dunif(p_grid,0,1)  #I don't understand this part of section 4.6 (page 78)
+?dunif
+
+```
+
+## 4.3  Gaussian model of height  (p 78)
+
+
+```{r}
+data(Howell1)
+d <- Howell1
+str(d)
+```
+
+```{r}
+precis(d)
+```
+
+stopped page 80.
+
+
+## homework questions
+Problems: 4E1-4E5; 4M1, 4M2, 4M3
+p 121
+
+### 4E1.
+
+
