@@ -31,12 +31,16 @@ actual predictor of interest is not in your model!!
 B define ranges that each parameter is releveant to; that parement is w, or weight.  like slope.
 B variables turn on parameters over differnt ranges of x axis 
 
+Basis function B are pretty arbitrary, and not based on any observed data.  
+
 degree 1 basis funciton = straight line
 
 cubic splines - flexible but not crazy.  commonly used. 
 
 spline slides - I don't understand the middle graph in figure 4.13.  
 
+Julin comments:  two types of predcitions.  one is for model parameters (mean, SD, etc for the popultion)
+BUT also of interest woudl be predictions about where new data might lie relative to pre-existing data.  This is PREDICTION INTERVAL.  
 
 ## Reading: Finish chapter 4  (I need to start on page 80)
 
@@ -68,7 +72,6 @@ prior_h <- rnorm(1e4, sample_mu, sample_sigma)
 dens(prior_h)
 ```
 ### section 4.3.3  grid approximation
-
 
 ```{r}
 mu.list <- seq( from=140, to=160 , length.out=200 ) 
@@ -551,9 +554,9 @@ Now for splines, must choose polynomial degree.  Degree 1 was our first example;
 library(splines)
 B <- bs(d2$year,
         knots=knot_list[-c(1,num_knots)] ,
-        degree=3 , intercept=TRUE )
+        degree=6 , intercept=TRUE )
 
-B[1:10, 1:17]
+B[1:10, ]
 ```
 
 ## WHY are there 17 columns here?  there were 15 knots (which start at beginning and end at end of data, I believe )
@@ -731,6 +734,7 @@ beta ~ Log-Normal(0.1, 1)
 sigma ~ dunif(0, 64)
 *using suggested max variance*
 
+#### oops - should have chosen sigma ~ dunif(0, 8) because square of value.  
 
 ### 4H1
 The weights listed below were recorded in the !Kung census, but heights were not recorded for these individuals. Provide predicted heights and 89% intervals (either HPDI or PI) for each of these individuals.
@@ -774,6 +778,8 @@ post.4h1 <- extract.samples( m.4h1 , n=1e4 )
 And now I want to determine what intervals are for given weights
 
 First one is 46.95; test it
+
+#### here, I just recaptiulated the link funciton.  
 ```{r}
 mu.1 <- post.4h1$a + post.4h1$b * ( 46.95 - xbar )
 length(mu.1) # 1e4, vector I believe
@@ -790,6 +796,7 @@ I am sure there is clever loop way to do this, but how to set it up?
 
 Or why not try sapply instead???
 
+#### I should have used sim function for this !!!
 ```{r}
 cases <- c(46.95, 43.72, 64.78, 32.59, 54.63)
 
@@ -840,6 +847,8 @@ The population mean is estimated as 108.32 (same as in actual data), with 89% in
 beta is estimated at 2.72.  So for every 10 units more weight, we'd expect child to be 10*2.72 = 27.2 units taller.
 
 (b) Plot the raw data, with height on the vertical axis and weight on the horizontal axis. Superimpose the MAP regression line and 89% HPDI for the mean. Also superimpose the 89% HPDI for predicted heights.
+
+#### should have used sim fnction!! and link function too.
 
 see p 109
 ```{r}

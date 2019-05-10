@@ -1,0 +1,824 @@
+---
+title: "Rethinking_week06_2019-05-09"
+author: "Stacey Harmer"
+date: "5/9/2019"
+output: 
+  html_document: 
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Chapter 5
+## Video 5 (Spurious Waffles )
+DAGs - directed acyclic graphs.  not mechanistic, but useful. arrow means causal relationship.  no loops (represent only a single time point)  Nodes (varaiables) and edges.  have directionality!  unlike Bayesian networks, which learn associations but don't have causality.
+
+paths: direction from nodes to arrows.  (path can go either with or against arrows (?))  
+
+Read pipe as 'conditional on'  | 
+
+multiple regression - add more than one variable to hte model.  
+
+standardize variables (make them Z scores) to make priors easier to set.  So now, alpha shoudl be close to zero.  Outcome is also standardized!!!  SD should be small.  (DON'T USe the data twice - don't use it to set priors)
+
+slopes.  
+
+R code 5.3 and 5.4.  Extract prior - extracts from the prior distribution.  
+link - generate predictions from the prior. good way to see if your prior is ridiculous or not.  really important for complicated models!!
+
+figure 5.3 - prior may be too strong.  age can affect divorce rate by 2 Standard Dev (flat prior thinks infinity is a resonable slope)
+
+remember: linear means additive!  
+Here, using exponential prior for SD (always positive, but skeptical of very large values)
+
+predictor residual plots - how does model 'see' relationships beween things?  DO NOT analyze residual plots.
+    examines residuals and outcomes.   (marriage rate conditional on age at marriage)  residual = diff between          expected and observed values.
+(he then looked for correlation between residuals and divorce rate.  DON"T DO THIS!  but look at it)
+
+Statistical 'control'  -  no experimental intervention. control means checking if one causes another.  need a DAG or something similar.  
+
+Counterfactual plots.  manipulate one varialble; hold others unchanged.  (all hypothetical)
+
+posterior prediction checks.  did approximation of posterior work?  compare predicitons to raw data.  useful for seeing outliers. 
+
+masked association - if one predictor is associated with another, or it two affect outcome in opposite directions.
+
+log of mass = magnitude, not just amount. (bigger primates have more neocortex)
+
+priors - 'default priors' are problematic!  contract alpha, so SD is smaller.  
+single predictor models:  kcal per g vs neocortex, or kcal per g vs body mass.  BUT now add both!
+display with counterfactual plots.  uncouples them to see relationship.  display via DAG.
+U is unobserved confound.  
+
+categorical variables. discrete categories, unordered.  not continuous!  
+dummy vs index variables.  dummy effectively makes two intercepts.  (but doesn't work so well if more than two cats) have to set priors for all.  and effectively assigns more uncertainty to one vs another.
+
+index variables: easier! start next video. here, unordered categorical data not 0, 1 but instead would be 1, 2. (index starts at 1, and counts up from there).  can assign same prior to all indices.  model looks same no matter how many indices there are.  foundation of multilevel models.  Stopped at minute 7
+
+## Chapter 5  
+p 123
+Multiple regression: using more than one predictor variable to model an outcome.
+Main effects = additive combinations of variables
+
+code 5.1
+```{r}
+# load data and copy 
+library(rethinking)
+data(WaffleDivorce)
+d <- WaffleDivorce
+
+# standardize variables
+d$A <- scale( d$MedianAgeMarriage )
+d$D <- scale( d$Divorce )
+# summary(d)
+```
+code 5.3
+```{r}
+m5.1 <- quap(
+  alist(
+    D ~ dnorm( mu , sigma ) ,
+    mu <- a + bA * A ,
+    a ~ dnorm( 0 , 0.2 ) ,
+    bA ~ dnorm( 0 , 0.5 ) ,
+    sigma ~ dexp( 1 )
+    ) , data = d )
+```
+
+Remmber that to simulate from priors, we use extract.prior and link!!!!!
+```{r}
+set.seed(10)
+prior <- extract.prior( m5.1 )
+mu <- link( m5.1 , post=prior , data=list( A=c(-2,2) ) )
+plot( NULL , xlim=c(-2,2) , ylim=c(-2,2) )
+for ( i in 1:50 ) lines( c(-2,2) , mu[i,] , col=col.alpha("black",0.4) )
+```
+try with flatter priors
+```{r}
+
+m5.1.flatter <- quap(
+  alist(
+    D ~ dnorm( mu , sigma ) ,
+    mu <- a + bA * A ,
+    a ~ dnorm( 0 , 0.8 ) ,
+    bA ~ dnorm( 0 , 1 ) ,
+    sigma ~ dexp( 1 )
+    ) , data = d )
+
+set.seed(10)
+prior.flatter <- extract.prior( m5.1.flatter )
+mu.flatter <- link( m5.1.flatter , post=prior.flatter , data=list( A=c(-2,2) ) )  # restricting range to 2 SD above/below
+plot( NULL , xlim=c(-2,2) , ylim=c(-2,2) )
+for ( i in 1:50 ) lines( c(-2,2) , mu.flatter[i,] , col=col.alpha("black",0.4) )
+```
+
+posterior predictions
+code 5.5
+
+```{r}
+# compute percentile interval of mean 5.5
+A_seq <- seq( from=-3 , to=3.2 , length.out=30 )
+mu <- link( m5.1 , data=list(A=A_seq) ) # remember A is standardized
+mu.mean <- apply( mu , 2, mean )
+mu.PI <- apply( mu , 2 , PI )
+
+# plot it all
+plot( D ~ A , data=d , col=rangi2 )
+lines( A_seq , mu.mean , lwd=2 )
+shade( mu.PI , A_seq )
+```
+```{r}
+precis(m5.1)
+
+```
+
+code 5.6
+```{r}
+d$M <- scale( d$Marriage ) 
+m5.2 <- quap(
+  alist(
+    D ~ dnorm( mu , sigma ) ,
+    mu <- a + bM * M ,
+    a ~ dnorm( 0 , 0.2 ) ,
+    bM ~ dnorm( 0 , 0.5 ) ,
+    sigma ~ dexp( 1 )
+) , data = d )
+```
+You can draw DAGs with dagitty.
+
+```{r}
+# install.packages('dagitty') 
+library(dagitty)
+dag5.1 <- dagitty( "dag {
+  A -> D
+  A -> M
+  M -> D
+}")
+coordinates(dag5.1) <- list( x=c(A=0,D=1,M=2) , y=c(A=0,D=1,M=0) )
+plot( dag5.1 )
+plot(graphLayout(dag5.1))
+```
+code 5.8
+```{r}
+m5.3 <- quap( 
+  alist(
+    D ~ dnorm( mu , sigma ) ,
+    mu <- a + bM*M + bA*A ,
+    a ~ dnorm( 0 , 0.2 ) ,
+    bM ~ dnorm( 0 , 0.5 ) ,
+    bA ~ dnorm( 0 , 0.5 ) ,
+    sigma ~ dexp( 1 )
+    ) , data = d )
+precis( m5.3 )
+```
+and plot
+```{r}
+plot( coeftab(m5.1,m5.2,m5.3), par=c("bA","bM") )
+```
+
+predictor residual plots - p 133
+```{r}
+m5.4 <- quap(
+alist(
+M ~ dnorm( mu , sigma ) ,
+mu <- a + bAM * A ,
+a ~ dnorm( 0 , 0.2 ) ,
+bAM ~ dnorm( 0 , 0.5 ) ,
+sigma ~ dexp( 1 )
+) , data = d )
+
+```
+
+```{r}
+mu <- link(m5.4)
+mu_mean <- apply( mu , 2 , mean )
+mu_resid <- d$M - mu_mean
+```
+p 134 - I think I get the concept of 'control' here!
+
+counterfactual plots  p 136
+see how predictions change as you cahnge one predictor at a time
+
+```{r}
+# prepare new counterfactual data
+M_seq <- seq( from=-2 , to=3 , length.out=30 )
+pred_data <- data.frame( M = M_seq , A = 0 )
+
+# compute counterfactual mean divorce (mu) 
+# here, have forced age to be 0.  That is, all marry at same age
+mu <- link( m5.3 , data=pred_data )
+mu_mean <- apply( mu , 2 , mean )
+mu_PI <- apply( mu , 2 , PI )
+
+# simulate counterfactual divorce outcomes
+D_sim <- sim( m5.3 , data=pred_data , n=1e4 )
+D_PI <- apply( D_sim , 2 , PI )
+
+# display predictions, hiding raw data with type="n"
+plot( D ~ M , data=d , type="n" )
+mtext( "Median age marriage (std) = 0" )
+lines( M_seq , mu_mean )
+shade( mu_PI , M_seq )
+shade( D_PI , M_seq )
+
+```
+posterior prediction plots p  138
+simulate predictions, averaging over posterior
+
+```{r}
+# call link without specifying new data
+# so it uses original data
+mu <- link( m5.3 )
+
+# summarize samples across cases
+mu_mean <- apply( mu , 2 , mean )
+mu_PI <- apply( mu , 2 , PI )
+
+# simulate observations
+# again no new data, so uses original data
+D_sim <- sim( m5.3 , n=1e4 )
+D_PI <- apply( D_sim , 2 , PI )
+
+```
+plot
+
+```{r}
+plot( mu_mean ~ d$D , col=rangi2 , ylim=range(mu_PI) ,
+      xlab="Observed divorce" , ylab="Predicted divorce" )
+abline( a=0 , b=1 , lty=2 )
+for ( i in 1:nrow(d) ) lines( rep(d$D[i],2) , mu_PI[,i] , col=rangi2 )
+identify( x=d$D , y=mu_mean , labels=d$Loc )
+
+# maybe this doesn't work in Rstudio?
+```
+Masked relationships - p 140
+
+```{r}
+library(rethinking)
+data(milk)
+d <- milk
+str(d)
+```
+
+standardize variabels
+
+```{r}
+d$K <- scale( d$kcal.per.g ) 
+d$N <- scale( d$neocortex.perc )
+d$M <- scale( log(d$mass) )
+```
+
+I must remmeber that function! 
+
+```{r}
+
+#m5.5_draft <- quap( 
+#  alist(
+#    K ~ dnorm( mu , sigma ) ,
+#    mu <- a + bN*N ,
+#    a ~ dnorm( 0 , 1 ) ,
+#    bN ~ dnorm( 0 , 1 ) ,
+#    sigma ~ dexp( 1 )
+#) , data=d )
+
+```
+```{r}
+d$neocortex.perc
+
+```
+clean up the data - drop cases with missing values
+```{r}
+dcc <- d[ complete.cases(d$K,d$N,d$M) , ]
+```
+
+```{r}
+m5.5_draft <- quap(
+  alist(
+    K ~ dnorm( mu , sigma ) ,
+    mu <- a + bN*N ,
+    a ~ dnorm( 0 , 1 ) ,
+    bN ~ dnorm( 0 , 1 ) ,
+    sigma ~ dexp( 1 )
+  ) , data=dcc )
+```
+
+check htese priors - simulate and plot 50 regresion lines
+
+```{r}
+prior <- extract.prior( m5.5_draft )
+xseq <- c(-2,2)
+mu <- link( m5.5_draft , post=prior , data=list(N=xseq) )
+plot( NULL , xlim=xseq , ylim=xseq )
+for ( i in 1:50 ) lines( xseq , mu[i,] , col=col.alpha("black",0.3) )
+```
+
+Tighten alpha prior; tighten slope Bn too
+
+```{r}
+m5.5 <- quap( 
+  alist(
+    K ~ dnorm( mu , sigma ) ,
+    mu <- a + bN*N ,
+    a ~ dnorm( 0 , 0.2 ) ,
+    bN ~ dnorm( 0 , 0.5 ) ,
+    sigma ~ dexp( 1 )
+  ) , data=dcc )
+```
+
+plot these priors
+```{r}
+prior <- extract.prior( m5.5 )
+xseq <- c(-2,2)
+mu <- link( m5.5_draft , post=prior , data=list(N=xseq) )
+plot( NULL , xlim=xseq , ylim=xseq )
+for ( i in 1:50 ) lines( xseq , mu[i,] , col=col.alpha("black",0.3) )
+```
+examine posterior
+```{r}
+precis( m5.5 )
+```
+
+```{r}
+xseq <- seq( from=min(dcc$N)-0.15 , to=max(dcc$N)+0.15 , length.out=30 )
+mu <- link( m5.5 , data=list(N=xseq) )
+mu_mean <- apply(mu,2,mean)
+mu_PI <- apply(mu,2,PI)
+plot( K ~ N , data=dcc )
+lines( xseq , mu_mean , lwd=2 )
+shade( mu_PI , xseq )
+```
+not very explanatory.  let's add adult body mass, using log(mass) as predicor.
+
+```{r}
+
+m5.6 <- quap(
+  alist(
+    K ~ dnorm( mu , sigma ) ,
+    mu <- a + bM*M ,
+    a ~ dnorm( 0 , 0.2 ) ,
+    bM ~ dnorm( 0 , 0.5 ) ,
+    sigma ~ dexp( 1 )
+ ) , data=dcc )
+
+precis(m5.6)
+
+```
+try to plot this;  M is already log scaled
+
+```{r}
+
+xseq <- seq( from=min(dcc$M)-0.15 , to=max(dcc$M)+0.15 , length.out=30 )
+mu <- link( m5.6 , data=list(M=xseq) )
+mu_mean <- apply(mu,2,mean)
+mu_PI <- apply(mu,2,PI)
+plot( K ~ M , data=dcc )
+lines( xseq , mu_mean , lwd=2 )
+shade( mu_PI , xseq )
+```
+```{r}
+m5.7 <- quap(
+alist(
+K ~ dnorm( mu , sigma ) ,
+mu <- a + bN*N + bM*M ,
+a ~ dnorm( 0 , 0.2 ) ,
+bN ~ dnorm( 0 , 0.5 ) ,
+bM ~ dnorm( 0 , 0.5 ) ,
+sigma ~ dexp( 1 )
+) , data=dcc )
+precis(m5.7)
+```
+compare mocels
+```{r}
+plot( coeftab( m5.5 , m5.6 , m5.7 ) , pars=c("bM","bN") )
+```
+pairs plot
+```{r}
+pairs( ~K + M + N, dcc)
+```
+counterfactual plot
+
+```{r}
+xseq <- seq( from=min(dcc$M)-0.15 , to=max(dcc$M)+0.15 , length.out=30 ) 
+mu <- link( m5.7 , data=data.frame( M=xseq , N=0 ) )
+mu_mean <- apply(mu,2,mean)
+mu_PI <- apply(mu,2,PI)
+plot( NULL , xlim=range(dcc$M) , ylim=range(dcc$K) )
+lines( xseq , mu_mean , lwd=2 )
+shade( mu_PI , xseq )
+```
+Categorical variables
+
+```{r}
+data(Howell1) 
+d <- Howell1
+str(d)
+```
+
+```{r}
+mu_female <- rnorm(1e4,178,20)
+mu_male <- rnorm(1e4,178,20) + rnorm(1e4,0,10)
+precis( data.frame( mu_female , mu_male ) )
+```
+index varaibles
+Create a list of alpha parameters, one for each unique value in index variable.
+
+```{r}
+
+d$sex <- ifelse( d$male==1 , 2 , 1 )
+str( d$sex )
+
+m5.8 <- quap( 
+  alist(
+    height ~ dnorm( mu , sigma ) ,
+    mu <- a[sex] ,
+    a[sex] ~ dnorm( 178 , 20 ) ,
+    sigma ~ dunif( 0 , 50 )
+) , data=d )
+
+precis( m5.8 , depth=2 ) # note deptht!
+```
+comapre categoreis
+
+```{r}
+post <- extract.samples(m5.8) 
+post$diff_fm <- post$a[,1] - post$a[,2]
+precis( post , depth=2 )
+```
+```{r}
+data(milk)
+d <- milk
+unique(d$clade)
+
+
+```
+coerce factors to integer
+```{r}
+d$clade_id <- as.integer( d$clade )
+```
+
+```{r}
+d$K <- scale( d$kcal.per.g )
+m5.9 <- quap(
+  alist(
+    K ~ dnorm( mu , sigma ),
+    mu <- a[clade_id],
+    a[clade_id] ~ dnorm( 0 , 0.5 ),
+    sigma ~ dexp( 1 )
+) , data=d )
+
+labels <- paste( "a[" , 1:4 , "]:" , levels(d$clade) , sep="" )
+plot( precis( m5.9 , depth=2 , pars="a" ) , labels=labels ,
+xlab="expected kcal (std)" )
+```
+
+
+```{r}
+set.seed(63) 
+d$house <- sample( rep(1:4,each=8) , size=nrow(d) )
+```
+
+```{r}
+m5.10 <- quap( 
+  alist(
+    K ~ dnorm( mu , sigma ),
+    mu <- a[clade_id] + h[house],
+    a[clade_id] ~ dnorm( 0 , 0.5 ),
+    h[house] ~ dnorm( 0 , 0.5 ),
+    sigma ~ dexp( 1 )
+) , data=d )
+```
+
+plot?
+```{r}
+labels <- paste( "a[" , 1:4 , "]:" , levels(d$house) , sep="" )
+plot( precis( m5.10 , depth=2 , pars="a" ) , labels=labels ,
+xlab="expected kcal (std)" )
+
+```
+
+## Problems
+p 154
+
+### 5E1
+Multiple linear regression:  model 2 and 4  (two slopes)
+
+### 5E3
+Time to PhD depends on amount of funding and the size of laboratory (that is, longer tiem if more money or mor funding)
+
+PhD.time <-  alpha + funding.amt*bF + lab.size*bL
+
+I expect both b values to be positive
+
+### 5M2 
+Invent a masked relationship.  outcome correlated with both predictors, the two predictors correlated with each other, and both predictors having opposite effects on outcome
+
+OK, imagine the following.  Rain promotes plant growth.  Plant mass provides fuel for wildfires. But rain inhibits wildfires.  
+
+wildfire.rate <- alpha + rain * bR + plant * bP
+
+Expect bR to be negative, and bP to be positive
+
+### 5M3  
+Marriage and divorce.  In the chapter, he discarded the idea that marriage causes divorce.  But instead, could we argue that divorce causes marriage?
+
+Yes, you could imagine that if there was a high divorce rate that would incresae marraige rate as well.  You'd have lots of people able to marry more than one time, so your 'effective marriageable population' would be higher than in an area with low divorce rate.
+
+marriage.rate <- alpha + divorce.rate * bD
+
+I don't think that I need to add any other factors given the wording of the problem
+
+### 5M4
+States with lots f Mormons have lower divorce rates than predicted.  Find a list of LDS poulation by state, and use these numbers as a predictor variable.
+
+OK, where to find data?
+
+```{r}
+library(rethinking)
+data("WaffleDivorce")
+?WaffleDivorce
+divorce <- WaffleDivorce
+#  str(divorce)
+head(divorce)
+```
+This returns state, divorce rate, population, median age of marriage, marriage rate.
+
+I got LDS data from wikipedia (as of 2018)
+```{r}
+LDS <- read.csv("LDS.rate.wikipedia.csv")
+head(LDS)
+```
+I see that population from the Waffle data are lower (they are in millions).  I will simply extract LDS.percent from my new dataset and add it to the waffle divorce data
+
+```{r}
+library(tidyverse)
+divorce.LDS <- divorce %>%
+  select(Location, MedianAgeMarriage, Marriage,Divorce)
+
+divorce.LDS <- divorce.LDS %>%
+  left_join(LDS, by = c("Location" = "state"))
+
+divorce.LDS <- divorce.LDS %>%
+  select(-LDS.membership, - population)
+```
+Now I have location, median age marriage, marriage rate, divorce rate, and LDS.percent
+
+Predict divorce rate using marriage rate, median age at marriage, and percent LDS population (standardized).  Consider transforming raw percent LDS variable (before standardizing, I assume).  So three terms.
+
+```{r}
+# first, make LDS.percent log version. Then standardize all varaibles of interest
+
+divorce.LDS <- divorce.LDS %>%
+  mutate(LDS.log = log(LDS.percent))
+
+divorce.std <- divorce.LDS %>%
+  mutate(Age=scale(MedianAgeMarriage),
+         M.rate = scale(Marriage),
+         D.rate = scale(Divorce),
+         LDS.std = scale(LDS.percent),
+         LDS.log.std = scale(LDS.log))
+
+divorce.std
+```
+Modify model m5.3
+
+```{r}
+# first, using non-transformed LDS data
+m5M4.a <- quap(
+  alist(
+    D.rate ~ dnorm( mu, sigma),
+    mu <- a + bM*M.rate + bA*Age + bLDS*LDS.std ,
+    a ~ dnorm(0, 0.2) ,
+    bM ~ dnorm(0, 0.5) ,
+    bA ~ dnorm(0, 0.5) ,
+    bLDS ~ dnorm(0, 0.5) ,
+    sigma ~ dexp(1)
+  ), data = divorce.std
+)
+
+# and then, with transformed LDS data
+
+m5M4.b <- quap(
+  alist(
+    D.rate ~ dnorm( mu, sigma),
+    mu <- a + bM*M.rate + bA*Age + bLDS*LDS.log.std ,
+    a ~ dnorm(0, 0.2) ,
+    bM ~ dnorm(0, 0.5) ,
+    bA ~ dnorm(0, 0.5) ,
+    bLDS ~ dnorm(0, 0.5) ,
+    sigma ~ dexp(1)
+  ), data = divorce.std
+)
+
+```
+How do they look?
+
+```{r}
+precis(m5M4.a)
+
+```
+For non-transformed LDS, Age has negative effect and LDS does also.
+```{r}
+precis(m5M4.b)
+```
+Simlar to above
+
+```{r}
+plot( coeftab(m5M4.a, m5M4.b))
+```
+Log transformation doesn't change things much. Age likely has stronger effect than LDS, but both seem useful.
+
+Let's simulate predictions averaged over posterior.  
+```{r}
+# use original data and model
+mu.divorce <- link(m5M4.b)
+
+# summarize
+mu_divorce_mean <- apply( mu.divorce , 2 , mean )
+mu_divorce_PI <- apply( mu.divorce , 2 , PI )
+
+# and now simulate observations (from original data)
+
+divorce_sim <- sim( m5M4.b , n=1e4 )
+divorce_PI <- apply( divorce_sim , 2 , PI )
+
+# and now plot
+
+plot( mu_divorce_mean ~ divorce.std$D.rate , col=rangi2 , ylim=range(mu_divorce_PI) , 
+xlab="Observed divorce" , ylab="Predicted divorce" )
+abline( a=0 , b=1 , lty=2 )
+for ( i in 1:nrow(d) ) lines( rep(divorce.std$D.rate[i],2) , divorce_PI[,i] , col=rangi2 )
+
+```
+That doesn't look very good.  the PI are really big. But on other hand, seems like most PI cross the diagonal.
+
+### 5H1
+Urban foxes
+```{r}
+data(foxes)
+?foxes
+
+fox <- foxes #116 rows.  one row per fox.  max group size is 8, min is 2
+```
+I'm asked to fit two regressions.  weight = a + area*bA    
+AND  
+weight = a + groupsize*bG
+
+I'll first standardize body weight, area, group size
+
+```{r}
+fox.std <- fox %>%
+  mutate(GS = scale(groupsize),
+                    A = scale(area),
+                    W = scale(weight))
+```
+Now, fit regressions
+
+First, weight = a + area*bA  
+```{r}
+m5H1.a <- quap(
+  alist(
+    W ~ dnorm( mu, sigma),
+    mu <- a +  bA*A ,
+    a ~ dnorm(0, 0.2) ,
+    bA ~ dnorm(0, 0.5) ,
+    sigma ~ dexp(1)
+  ), data = fox.std
+)
+
+precis(m5H1.a)
+```
+Not very useful.
+
+Now, weight = a + groupsize*bGS
+```{r}
+m5H1.b <- quap(
+  alist(
+    W ~ dnorm( mu, sigma),
+    mu <- a +  bGS*GS ,
+    a ~ dnorm(0, 0.2) ,
+    bGS ~ dnorm(0, 0.5) ,
+    sigma ~ dexp(1)
+  ), data = fox.std
+)
+
+precis(m5H1.b)
+```
+not any better.  generally, group size negatively associated with weight.
+
+Plots  - MAP regression line, and 95% interval of the mean  (so this is PI ( samples, prob = .95)). For the latter, need seamples from posterior density.
+
+MAP line is mean mu for each weight.  I think this is like Figure 4.9
+
+```{r}  
+# first model - weight by area
+## (Should I have used nonscaled weight?)
+
+# use link to compute mu for each sample from posterior and for each Area
+
+#calculate  mean mu for each Area using link function (which samples from posterior for me)
+
+# now define a sequence of areas to define weights for (standardized)
+area.seq <- seq(from = -2.2, to = 2.2, by = .2)
+# now calculate mu from model across these areas
+mu.areas.5H1a <- link(m5H1.a, data = data.frame(A=area.seq))
+dim(mu.areas.5H1a) # 1000 by 23
+mu.areas.5H1a.mean <- apply(mu.areas.5H1a, 2 , mean)
+mu.areas.5H1a.PI <- apply(mu.areas.5H1a, 2, PI, prob = 0.95)
+
+plot( W ~ A, fox.std, col = col.alpha(rangi2, 0.5) )  # raw data
+# plot MAP line and shaded ares for 95% PI
+lines( area.seq , mu.areas.5H1a.mean )
+shade( mu.areas.5H1a.PI , area.seq )
+
+```
+Not explanatory!
+
+Now for second model, weight = a + groupsize*bGS  (GS range from -1.5 to 2.5)
+```{r}
+# second model - weight by groupsize
+## (Should I have used nonscaled weight?)
+
+# use link to compute mu for each sample from posterior and for each Area
+
+#calculate  mean mu for each Area using link function (which samples from posterior for me)
+
+# now define a sequence of areas to define weights for (standardized)
+groupsize.seq <- seq(from = -1.5, to = 2.5, by = .2)
+# now calculate mu from model across these areas
+mu.groupsize.5H1b <- link(m5H1.b, data = data.frame(GS=groupsize.seq))
+
+mu.groupsize.5H1b.mean <- apply(mu.groupsize.5H1b, 2 , mean)
+mu.groupsize.5H1b.PI <- apply(mu.groupsize.5H1b, 2, PI, prob = 0.95)
+
+plot( W ~ GS, fox.std, col = col.alpha(rangi2, 0.5) )  # raw data
+# plot MAP line and shaded ares for 95% PI
+lines( groupsize.seq , mu.groupsize.5H1b.mean )
+shade( mu.groupsize.5H1b.PI , groupsize.seq )
+
+```
+Also not great!!!
+
+### 5H2
+Now fit a multiple linear regression with weight as the outcome and both area and groupsize as predictor variables.
+
+weight = a + groupsize*bGS + area*bA
+```{r}
+m5H2 <- quap(
+  alist(
+    W ~ dnorm( mu, sigma),
+    mu <- a +  bA*A +  bGS*GS ,
+    a ~ dnorm(0, 0.2) ,
+    bA ~ dnorm(0, 0.5) ,
+    bGS ~ dnorm(0, 0.5) ,
+    sigma ~ dexp(1)
+  ), data = fox.std
+)
+
+precis(m5H2)
+plot(coeftab(m5H2))
+```
+Now, bA is largely positive and bGS negative.  
+So larger territory positively associated with larger weight, but larger groupsize negatively associated.  makes intuitive sense.  Confounding varaibles.
+
+Now, plot the predictions of the model for each predictor, holding the other predictor
+constant at its mean.  (This is 'counterfactual'plotting - see Fig 5.8) and p 147.
+
+```{r}
+# Determine means
+fox.std.A.mean <- mean(fox.std$A)
+fox.std.GS.mean <- mean(fox.std$GS)
+```
+
+See R code 5.31
+
+First, counterfactual holding Area at the mean (very close to 0) and sampling predicted weight across different group sizes
+
+```{r}
+x_GS <- seq( from = min(fox.std$GS)-0.15, to = max(fox.std$GS) + 0.15, length.out = 30)
+mu.GS <- link(m5H2, data = data.frame(GS = x_GS, A = fox.std.A.mean))
+mu.GS.mean <- apply(mu.GS, 2, mean)
+mu.GS.PI <- apply(mu.GS,2, PI, prob = 0.95)
+
+plot( NULL, xlim = range(fox.std$GS), ylim=range(fox.std$W), xlab="groupsize (std)" , ylab="weights (std)")
+lines(x_GS, mu.GS.mean, lwd = 2)
+shade(mu.GS.PI, x_GS)
+
+```
+That looks pretty good.  trends towards lower weight in a larger  group.
+
+Now the same, but this time hold groupsize at mean (near 0) and sampling predicted weight across different areas
+
+```{r}
+x_A <- seq( from = min(fox.std$A)-0.15, to = max(fox.std$A) + 0.15, length.out = 30)
+mu.A <- link(m5H2, data = data.frame(A = x_A, GS = fox.std.GS.mean))
+mu.A.mean <- apply(mu.A, 2, mean)
+mu.A.PI <- apply(mu.A, 2, PI, prob = 0.95)
+
+plot( NULL, xlim = range(fox.std$A), ylim=range(fox.std$A), xlab="area (std)" , ylab="weights (std)")
+lines(x_A, mu.A.mean, lwd = 2)
+shade(mu.A.PI, x_A)
+```
+And looser trend towards greater weight with larger range area.
+
+
