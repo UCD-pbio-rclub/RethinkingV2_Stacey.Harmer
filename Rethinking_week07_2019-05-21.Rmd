@@ -1,0 +1,474 @@
+---
+title: "Rethinking_week07_2019-05-21"
+author: "Stacey Harmer"
+date: "5/22/2019"
+output: 
+  html_document: 
+    keep_md: yes
+---
+Video: 06-Jan 11: Haunted DAG <slides> <video>
+
+Reading: Chapter 6
+
+Problems: 6H1, 6H2
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Lecture 06 - 
+
+index variables.  see end of chapter 5
+
+chapter 6 - spurious correlations!
+be careful when
+selection distortion effect.
+also, be careful to not add excess variables to model.  
+
+4 types of confounds (for directed acyclic graphs - DAGs)
+a method for de-confounding each.
+
+*confounding fork*.  Z causes both X and Y.   X <- Z -> Y
+'condition on Z' to remove dependency between X and Y.  weird notation:  X _||_ Y|Z
+(X is indepenent of Y if you account for Z)
+
+*Pipe*.   X ->  Z -> Y  
+here, Z mediates assocaition between X and Y.  Again, conditioning on Z removes dependency between X and Y.
+(X is indepenent of Y if you account for Z)  
+Note that Data don't distinguish between this and a fork!
+
+example: post-treatment bias.  if you were to control for conseuence of treatment, you may remove treatment as well.  then outcome not rleated to treatment.  (measure the various parameters, but don't necessarily use them all in your model)
+
+observational study: gender gap in income
+(if you condition on job, everything upstream of 'job' disappears)
+
+*explosive collider*
+X -> Z <- Y
+X and Y jointly cause Z.  X and Y are indepdnent.  But if you condition on Z, you create a (spurious) dependency between X and Y!!!
+Learning both X and Z reveals Y.  (works for continuous and discrete examples)
+Common, and hazardous.  
+
+basketball:  'conditional on being a pro player' there is no effect of height on scoring.  (that is, the selection for pro player took away effect of height)
+
+collider confounding.  idea that age causes marriage, and happiness causes marriage.  Doe Age affect happiness?  
+when you control for happiness, creating index variable (0 or 1).  
+(regression models don't have arrows!  no directionality in this information)
+We stratified by marriage status and in the process found huge correlation with happiness.
+now, find negative correlation between age and happiness.
+
+'haunted DAG'.   unobserved confound can screw you.  
+example of grandparents (G) and parents (P) on education of children (C)
+U, unobserved variable, may make parents a collider.  here, conditiniong on parents generates collider bias with U.
+model: G have no effect on C. 
+conditioning on collider 'opens a backdoor' throuhg U to C.
+stratified on educational outcome of parents (bad neighborhood + good G, or good hood + bad G)
+so here, U is neighborhood.  
+
+*back-door criterion*
+to de-counfound, must shut all bock door paths.  
+
+*descendent*
+X -> Z -> Y
+     |
+     V
+     A
+     
+This is tricky too. if you condition on A, you're weakly conditioning on Z.       
+ 
+Video 7
+arrows are about inforamtion and can flow either way. but causation only goes one way (with arrows)
+if your confoundign fork U is unobserved, you're sunk.  
+(two arrows to P means information gets stuck there. take away one and then you're confounded)
+minute 12 was helpful in understanding. 
+**why does conditioning on A help?  This was about minute 15.**
+(if we coudl condition on U that would also work)
+(waffles: could condition on S.  Or condition on A and M)
+
+test your DAG.  
+causal inference.  Hume: correlation is not enough! STOPPED at minute 36 minutes.
+
+# Chapter 6
+Hazards:  multicollinearity, post-treatment bias, and collider bias.
+(then: instrumental variables)
+
+example - code 6.1
+```{r}
+set.seed(1914)
+N <- 200 # num grant proposals
+p <- 0.1 # proportion to select
+# uncorrelated newsworthiness and trustworthiness
+nw <- rnorm(N)
+tw <- rnorm(N)
+# select top 10% of combined scores
+s <- nw + tw # total score
+q <- quantile( s , 1-p ) # top 10% threshold
+selected <- ifelse( s >= q , TRUE , FALSE )
+cor( tw[selected] , nw[selected] )
+
+```
+
+## 6.1  Multicollinearity
+that is, a strong correlation between two or more predictor variables.
+
+Example, code 6.2
+```{r}
+N <- 100 # number of individuals 
+set.seed(909)
+height <- rnorm(N,10,2) # sim total height of each
+leg_prop <- runif(N,0.4,0.5) # leg as proportion of height
+leg_left <- leg_prop*height + # sim left leg as proportion + error
+rnorm( N , 0 , 0.02 )
+leg_right <- leg_prop*height + # sim right leg as proportion + error
+rnorm( N , 0 , 0.02 )
+# combine into data frame
+d <- data.frame(height,leg_left,leg_right)
+
+```
+
+use both legs as predictors.  
+
+code 6.3
+```{r}
+library(rethinking)
+m6.1 <- quap(
+  alist(
+    height ~ dnorm( mu , sigma ) ,
+    mu <- a + bl*leg_left + br*leg_right ,
+    a ~ dnorm( 10 , 100 ) ,
+    bl ~ dnorm( 2 , 10 ) ,
+    br ~ dnorm( 2 , 10 ) ,
+    sigma ~ dexp( 1 )
+    ) ,
+  data=d )
+precis(m6.1)
+
+plot(precis(m6.1))
+?dnorm
+```
+This tells us that left leg length isn't a useful predictor of height if you know right leg length. 
+
+```{r}
+post <- extract.samples(m6.1) 
+plot( bl ~ br , post , col=col.alpha(rangi2,0.1) , pch=16 )
+```
+If two of your predictors are too closely correlated, only the sum of the two beta parameters matters, not each identical one.
+
+code 6.6
+```{r}
+sum_blbr <- post$bl + post$br
+dens( sum_blbr , col=rangi2 , lwd=2 , xlab="sum of bl and br" )
+```
+
+now run proper model, code 6.7
+```{r}
+m6.2 <- quap(
+  alist(
+    height ~ dnorm( mu , sigma ) ,
+    mu <- a + bl*leg_left,
+    a ~ dnorm( 10 , 100 ) ,
+    bl ~ dnorm( 2 , 10 ) ,
+    sigma ~ dexp( 1 )
+    ) ,
+  data=d )
+precis(m6.2)
+
+```
+
+###  Milk and muticollinearity
+
+```{r}
+data(milk)
+
+d <- milk
+d$K <- scale( d$kcal.per.g )
+d$F <- scale( d$perc.fat )
+d$L <- scale( d$perc.lactose )
+
+```
+first, model kcal.p.g as function of perc.fat and perc.lactose
+
+code 6.9
+```{r}
+# kcal.per.g regressed on perc.fat 
+m6.3 <- quap(
+  alist(
+    K ~ dnorm( mu , sigma ) ,
+    mu <- a + bF*F ,
+    a ~ dnorm( 0 , 0.2 ) ,
+    bF ~ dnorm( 0 , 0.5 ) ,
+    sigma ~ dexp( 1 )
+    ) , data=d )
+
+# kcal.per.g regressed on perc.lactose
+m6.4 <- quap(
+  alist(
+    K ~ dnorm( mu , sigma ) ,
+    mu <- a + bL*L ,
+    a ~ dnorm( 0 , 0.2 ) ,
+    bL ~ dnorm( 0 , 0.5 ) ,
+    sigma ~ dexp( 1 )
+    ) , data=d )
+precis( m6.3 )
+precis( m6.4 )
+
+
+```
+now both
+
+code 6.10
+
+```{r}
+m6.5 <- quap(
+  alist(
+    K ~ dnorm( mu , sigma ) ,
+    mu <- a + bF*F + bL*L ,
+    a ~ dnorm( 0 , 0.2 ) ,
+    bF ~ dnorm( 0 , 0.5 ) ,
+    bL ~ dnorm( 0 , 0.5 ) ,
+    sigma ~ dexp( 1 )
+    ) ,
+data=d )
+precis( m6.5 )
+```
+strong inverse reltationship between fat and lactose
+
+```{r}
+pairs( ~ kcal.per.g + perc.fat + perc.lactose , data=d , col=rangi2 )
+
+```
+correlations: problem is hte amount of corelation that remains after accounting for any other predictors.  
+
+Figure 6.4 is pretty wild.  problem really seen when corr > 0.8.  pairs plots are handy.
+
+## 6.2  post-treatment bias
+
+code 6.14
+```{r}
+set.seed(71)
+# number of plants
+N <- 100
+# simulate initial heights
+h0 <- rnorm(N,10,2)
+# assign treatments and simulate fungus and growth
+treatment <- rep( 0:1 , each=N/2 )
+fungus <- rbinom( N , size=1 , prob=0.5 - treatment*0.4 )
+h1 <- h0 + rnorm(N, 5 - 3*fungus)
+# compose a clean data frame
+d <- data.frame( h0=h0 , h1=h1 , treatment=treatment , fungus=fungus )
+
+precis(d)
+```
+want to normalize height to starting height. 
+recall that log-normal distributions are always positive.
+
+code 6.15
+```{r}
+sim_p <- rlnorm( 1e4 , 0 , 0.25 ) 
+precis( data.frame(sim_p) )
+
+```
+now make model
+
+code 6.16
+```{r}
+m6.6 <- quap( 
+  alist(
+    h1 ~ dnorm( mu , sigma ),
+    mu <- h0*p,
+    p ~ dlnorm( 0 , 0.25 ),
+    sigma ~ dexp( 1 )
+    ), data=d )
+precis(m6.6)
+```
+This model didn't take into account the fungus, nor the treatment
+
+now make model including both of them within p, the proportion of growth
+
+code 6.17
+```{r}
+m6.7 <- quap(
+  alist(
+    h1 ~ dnorm( mu , sigma ),
+    mu <- h0 * p,
+    p <- a + bt*treatment + bf*fungus,
+    a ~ dlnorm( 0 , 0.2 ) ,
+    bt ~ dnorm( 0 , 0.5 ),
+    bf ~ dnorm( 0 , 0.5 ),
+    sigma ~ dexp( 1 )
+    ), data=d )
+precis(m6.7)
+```
+
+since fungus is downstream of treatment, it isnt useful
+"Once we know if a plant developed fungus, treatment information isn't useful"
+
+simpler model, cod 6.18
+
+```{r}
+m6.8 <- quap( 
+  alist(
+    h1 ~ dnorm( mu , sigma ),
+    mu <- h0 * p,
+    p <- a + bt*treatment,
+    a ~ dlnorm( 0 , 0.2 ),
+    bt ~ dnorm( 0 , 0.5 ),
+    sigma ~ dexp( 1 )
+    ), data=d )
+precis(m6.8)
+```
+
+```{r}
+library(dagitty)
+plant_dag <- dagitty( "dag {
+  H0 -> H1
+  F -> H1
+  T -> F
+}")
+coordinates( plant_dag ) <- list( x=c(H0=0,T=2,F=1.5,H1=1) ,
+y=c(H0=0,T=0,F=1,H1=2) )
+plot( plant_dag )
+
+```
+
+analyze DAG
+```{r}
+dseparated( plant_dag , "T" , "H1" )
+dseparated( plant_dag , "T" , "H1" , "F" )
+```
+
+```{r}
+impliedConditionalIndependencies( plant_dag )
+```
+
+## 6.3  Collider bias
+what exactly does 'condition on' mean?  (It can mean, incdluing is as predictor in a regression)
+conditioning the prior on the data.  I think means fitting the data to the model, taking the priors into account
+
+so here, I think it means modeling the outcome on one variable.  the other variable will be correlated with first vvariable, but they don't have a causal relationship.
+
+'collider' is the variable impacted by two other variables (above, H1)
+
+code 6.22
+```{r}
+library(rethinking)
+d <- sim_happiness( seed=1977 , N_years=1000 )
+precis(d)
+```
+model influence of age on happiness, controlling for marriage
+
+See model on page 175.  marriage index is alpha
+
+Scale age range (from 18 to 65)
+```{r}
+d2 <- d[ d$age>17 , ] # only adults
+d2$A <- ( d2$age - 18 ) / ( 65 - 18 )
+```
+
+happiness range is 4 units.  If we assume age strongly affects happiness, slope will be 4 (x range now 1)
+
+95% of mass of normal distribution is within 2 SD.  So set SD to 4/2 = 2, meaning we expect 95% of slopes to be less than max strength.
+
+```{r}
+d2$mid <- d2$married + 1
+
+m6.9 <- quap(
+  alist(
+    happiness ~ dnorm( mu , sigma ),
+    mu <- a[mid] + bA*A,
+    a[mid] ~ dnorm( 0 , 1 ),
+    bA ~ dnorm( 0 , 2 ),
+    sigma ~ dexp(1)
+    ) , data=d2 )
+precis(m6.9,depth=2)
+```
+Age negatively associated with happiness
+
+Now, model without marraige
+```{r}
+m6.10 <- quap(
+  alist(
+    happiness ~ dnorm( mu , sigma ),
+    mu <- a + bA*A,
+    a ~ dnorm( 0 , 1 ),
+    bA ~ dnorm( 0 , 2 ),
+    sigma ~ dexp(1)
+    ) , data=d2 )
+precis(m6.10)
+
+```
+Now, age not a factor. 
+whoa, that is scary
+
+#### 6.3.2  the haunted DAG
+
+code 6.26
+```{r}
+N <- 200 # number of grandparent-parent-child triads
+b_GP <- 1 # direct effect of G on P
+b_GC <- 0 # direct effect of G on C
+b_PC <- 1 # direct effect of P on C
+b_U <- 2 # direct effect of U on P and C
+```
+
+code 6.27
+```{r}
+set.seed(1)
+U <- 2*rbern( N , 0.5 ) - 1  # random samples from Bernoulli distribution; this is binary
+G <- rnorm( N )
+P <- rnorm( N , b_GP*G + b_U*U )
+C <- rnorm( N , b_PC*P + b_GC*G + b_U*U )
+d <- data.frame( C=C , P=P , G=G , U=U )
+
+```
+
+model effects of parents and grandparents on C
+
+code 6.28
+```{r}
+m6.11 <- quap(
+  alist(
+    C ~ dnorm( mu , sigma ),
+    mu <- a + b_PC*P + b_GC*G,
+    a ~ dnorm( 0 , 1 ),
+    c(b_PC,b_GC) ~ dnorm( 0 , 1 ),
+    sigma ~ dexp( 1 )
+    ), data=d )
+precis(m6.11)
+
+```
+
+"conditioning on parents is like looking within subpopulations of parents with similar education"
+(here, it is just including parents in teh model)
+'once we know P, learning G tells us about U (indirectly). U is associted with outcome, C.
+
+If we include U in hte model, we're saved
+code 6.29
+
+```{r}
+m6.12 <- quap(
+  alist(
+    C ~ dnorm( mu , sigma ),
+    mu <- a + b_PC*P + b_GC*G + b_U*U,
+    a ~ dnorm( 0 , 1 ),
+    c(b_PC,b_GC,b_U) ~ dnorm( 0 , 1 ),
+    sigma ~ dexp( 1 )
+    ), data=d )
+precis(m6.12)
+```
+
+what if we exclude parents from model?
+
+```{r}
+m6.12.test <- quap(
+  alist(
+    C ~ dnorm( mu , sigma ),
+    mu <- a  + b_GC*G ,
+    a ~ dnorm( 0 , 1 ),
+    b_GC ~ dnorm( 0 , 1 ),
+    sigma ~ dexp( 1 )
+    ), data=d )
+
+precis(m6.12.test)
+```
+
+
