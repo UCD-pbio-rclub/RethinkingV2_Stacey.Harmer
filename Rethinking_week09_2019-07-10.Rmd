@@ -14,12 +14,12 @@ directed acyclic gaffes (!)  put error into model; residual confounding.
 _Video: Ulysses_ Compass https://youtu.be/0Jc6Kgw5qc0 (you may have already watched the first half of this)
 starts at minute 43 ish
 
-overfitting  - learning too muchf rom the data.  fit well, but predict worse.
+overfitting  - learning too  much from the data.  fit well, but predict worse.
 (classic is polynomial regression - wiggles aroudn like carzy when drop out any one point)
 
-underfitting  - learning to littl from the data.  fit and predict poorly.
+underfitting  - learning too little from the data.  fit and predict poorly.
 
-fit model, dropping out one data point at a time.  insenstiive to exact sample - mayb too little fitting.
+fit model, dropping out one data point at a time.  insenstiive to exact sample - maybe too little fitting.
 
 (* adding parameters improves fit to sample, although not true of multilevel models & other types)
 
@@ -65,16 +65,18 @@ m7.1 <- quap(
     b ~ dnorm( 0 , 10 ),
     log_sigma ~ dnorm( 0 , 1 )
 ), data=d )
+summary(d)
 ```
 ***why the exp(log)??***
 
-Rsq tells us 'proportion of variance "explained" by the model'.  
+R-sq tells us 'proportion of variance "explained" by the model'.  
 compute posterior predictive distribution for each observation.  then get residuals, and variances.
 
 code 7.4
 ```{r}
 set.seed(12)
 s <- sim( m7.1 )  # this computes posterior predictive distribution for each observation.  
+summary(s)
 # see figure 3.6 on page 66 for explanation
 r <- apply(s,2,mean) - d$brain_std  # r is residual
 resid_var <- var2(r) # var2 is actual empirical variance
@@ -203,8 +205,16 @@ p 218. "uncertainty in a probability distribution ishte average log-probability 
 code 7.13
 ```{r}
 p <- c(0.3, 0.7)
-
 -sum(p*log(p))  # this is the entropy value.  this quantifies our uncertainty
+# 0.61
+
+p <- c(0.5, 0.5)
+-sum(p*log(p))
+# 0.69
+
+p <- c(0.95, 0.05)
+-sum(p*log(p))
+# 0.20
 ```
 maxent = maximum entropy = family of techniques to find probabliliyt distributions more consistent with our state of knowledge.  
 
@@ -219,7 +229,7 @@ can use this to contrast different approximations to p.  want to minimize diverg
 K-L divergence (above) is distance of model from target
 can estimate this divergence using deviance
 
-need to compare the average log-probabilities of the two models in question.  
+***need to compare the average log-probabilities of the two models in question.***  
 
 code 7.14
 ```{r}
@@ -227,9 +237,23 @@ set.seed(1)
 lppd( m7.1, n=1e4)
 
 ```
-
 lppd = log pointwise predictive density.  
 sum them up to get total log-prob score for model and data
+
+code 7.15
+```{r}
+set.seed(1) 
+logprob <- sim( m7.1 , ll=TRUE , n=1e4 )
+n <- ncol(logprob)
+ns <- nrow(logprob)
+f <- function( i ) log_sum_exp( logprob[,i] ) - log(ns)
+( lppd <- sapply( 1:n , f ) )
+log(1) # 0
+log(0.001) # -6.9
+exp(log(0.001)) # 0.001
+
+```
+
 
 7.2.5  
 scoring the right data
@@ -247,9 +271,9 @@ _Problems: 7E1 - 7E4_
 
 **7E1**
 the three motivating criteria that define information entropy.  see p 202
-1. we want the relationship between probability and uncertainty to be continuous.  this way, small changes in probability don't cause big changes in undertainty.
+1. we want the relationship between probability and uncertainty to be continuous.  this way, small changes in probability don't cause big changes in uncertainty.
 2. uncertainty increases with the number of different possible outcomes.
-3. uncertainty measurements can be added together so that subsets of conditions always add up so that total uncertainty is unchanged
+3. uncertainty measurements can be added together so that subsets of conditions always add up so that total uncertainty is constant
 
 **7E2**
 What is the entropy of a coin that comes up heads 70% of the time?
@@ -275,7 +299,7 @@ p <- c(0.333, 0.333, 0.333)
 
 ```
 
-
+next time: watch next video, and then 7.2 and 7.3 
 
 
 

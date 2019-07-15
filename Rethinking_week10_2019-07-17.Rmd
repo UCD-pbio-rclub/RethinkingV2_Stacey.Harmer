@@ -1,0 +1,239 @@
+---
+title: "Rethinking_week10_2019-07-17.Rmd"
+author: "Stacey Harmer"
+date: "7/10/2019"
+output: 
+  html_document: 
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Video: 08-Jan 18: Model Comparison 
+https://www.youtube.com/watch?v=gjrsYDJbRh0&feature=youtu.be
+
+*Information Theory*
+rigorous theory for reduction in uncertainty. 
+information entropy - uncertainty is H, and is average log-prob of an event.  
+potential of surprise is the flip side of entropy.  
+
+Distance, divergence, is not symmetric
+
+function DKL for homework.  minute 10.  Can think of divergence as potential for surprise (that is, difference between model and reality)
+estimating divergence:  lppd, log-pointwise-predictive-density.  this is average across posterior. 
+smaller is better on 'deviance' scale.  negative values are fine. 
+
+magnitude of overfitting is difference between in and out samples. 
+
+regularize - don't use flat priors!  this helps avoid overfitting.  (priors are regularizing)
+in sample, more stringent prior does worse than flatter prior.  out of sample, the opposite. "flat priors are always bad!"
+
+but with a large sample, priors hardly matter at all.
+
+cross-validation and information criteria. can predict amount of overfitting, even when you don't have out of sample test data.  can score models on overfitting risk:
+cross-validation
+  leave out data, train on retained data, and then predict the omitted data.  a useful approximation is "importance sampling".  more useful is PSIS; use LOO function in rethinking.  only need  single posterior distribution.  
+  
+information criteria
+  Akaike.  AIC.  estimate of K-L distance.  need gaussian posterior distribution. now, WAIC is used instead, as it doesn't assume gaussian posterior.  varince in posterior distirbution is key. 
+  
+avoid model selection.  instead, compare models to better understand them.  
+model not necessarily useful for causal influence.
+
+
+## Book: 7.2 (re-read if necessary), 
+
+p 206 - log prob score. DEviance is like lppd, but multiplied by -2.
+code 7.15 is on page 207.  lppd explained
+
+## 7.3  Regularization
+recall that standardization of predictors means SD = 1, and mean = 0.  
+
+## 7.4 Predicting predictive accuracy
+'for ordinary linear regressions with flat priors, the expected overfitting penalty is about twice the number of parameters'
+AIC is reliable only when priors are flat, posterior is Gaussian, and n >> k 
+
+WAIC - guesses out of sample K-L Divergence.  
+
+code 7.20
+
+```{r}
+data(cars)
+library(rethinking)
+
+m <- quap(
+  alist(
+    dist ~ dnorm(mu, sigma),
+    mu <- a + b*speed,
+    a <- dnorm(0,100),
+    b ~ dnorm(0, 10),
+    sigma ~ dexp(1)
+  ), data = cars
+)
+
+set.seed(94)
+post <- extract.samples(m, n = 1000)
+
+```
+now get log-likelihood of each observation 
+
+coe 7.21
+```{r}
+n_samples <- 1000
+
+logprob <- sapply(1:n_samples,
+                  function(s) {
+                    mu <- post$a[s] + post$b[s]* cars$speed
+                    dnorm(cars$dist, mu, post$sigma[s], log = TRUE)
+                  })
+cars
+```
+
+code 7.22, p 218
+```{r}
+n_cases <- nrow(cars)
+lppd <- sapply(1:n_cases, function(i) log_sum_exp(logprob[i,]) - log(n_samples))
+
+# compare to main function
+```
+
+```{r}
+lppd(m, n = 1e4) # yep, looks very similar.
+```
+code 7.23, 7.24, 7.25
+```{r}
+pWAIC <- sapply(1:n_cases, function(i) var(logprob[i ,]))
+-2*(sum(lppd) - sum(pWAIC))  #423.3
+
+waic_vec <- -2*(lppd - pWAIC)
+sqrt(n_cases*var(waic_vec))  #17.82;  this is SE of WAIC
+
+WAIC(m, n = 1000)
+?WAIC
+```
+
+Huh, that was somewhat opaque.  finished on p 221
+
+## Problems , p 234
+
+### '6'M1
+
+compare definitions of AIC, DIC, and WAIC.  which is most general? what are assumptions?
+
+##### AIC = Dtrain + 2p = -2lppd + 2p
+that is, it equals divergence of model and real target plus 2 * number of parameters
+
+AIC is special case of WAIC; it requires 
+* flat priors 
+* it uses MAP estimates instead of the entire posterior (but lppd is the Baeysian version, as it uses entire posterior dist); he says posterior distribution is apporximately multivariate Gaussian
+* sample size N >> number of parameters k
+
+##### DIC - not defined formally
+
+DIC assumes
+* posterior is multivariate Gaussian
+* N >> k
+
+##### WAIC is the most general
+
+WAIC is similar to AIC in that it = -2 ( lppd - pWAIC)
+
+where pWAIC is a penalty score that proportional to variance in posterior predictions.  see p 215
+
+* makes no assumptions about shape of posterior
+* doesnt try to estimate cross-validation score, but instead out-of-sample K-L Divergence
+
+### '6'M2
+
+explain difference between model selection and model averaging.  what information is lost in each?
+
+selection: described on p 221 (section 7.5).  this is choosing model with lowest criterion value (such as WAIC) and discarding the others. This process discards information about relative model accuracy, which can be useful as it tellls us how confident we are in the different models.  Also, the 'best' model may not tell us about causation.
+
+averaging:  see p 225.  not covered in book, but a family of methods to combine predictions of multilple models
+
+### '6'M3
+
+When comparing models with IC, why must all models be fit to exactly same observations?  What if differnet # of observations were used?
+
+This seemms intuitively obvious.  both the number of observations and the actual values themselves will affect model fitting.  to use differnent # of observations would be an apples and oranges type situation
+
+test this:
+
+OK, I'll use his examples
+
+```{r}
+sppnames <- c( "afarensis","africanus","habilis","boisei", 
+"rudolfensis","ergaster","sapiens")
+brainvolcc <- c( 438 , 452 , 612, 521, 752, 871, 1350 )
+masskg <- c( 37.0 , 35.5 , 34.5 , 41.5 , 55.5 , 61.0 , 53.5 )
+d <- data.frame( species=sppnames , brain=brainvolcc , mass=masskg )
+
+# first, fit simple model to a dataset with 30 measurements
+set.seed(15)
+x1 <- runif(30)
+set.seed(2)
+x2 <- runif(30)
+
+data.30 <- data.frame(y = x1, pred = x2)
+
+m6M3.30 <- quap(
+  alist(
+    y ~ dnorm(mu, 1),
+    mu <- a + b*pred, 
+    a ~ dnorm(0.5, 1), 
+    b ~ dnorm(0,10)
+  ), data = data.30
+)
+
+#now a more complex model, with a smaller dataset
+
+set.seed(15)
+z1 <- runif(20)
+set.seed(2)
+z2 <- runif(20)
+
+data.20 <- data.frame(y = z1, pred = z2)
+
+m6M3.20 <- quap(
+  alist(
+    y ~ dnorm(mu, 1),
+    mu <- a + b[1]*pred + b[2]*pred^2, 
+    a ~ dnorm(0.5, 1), 
+    b ~ dnorm(0,10)
+  ), data = data.20, start = list(b=rep(0,2))
+)
+
+# now compare
+#  set.seed(113)
+#  compare(m6M3.30, m6M3.20)
+
+# just throws an error
+
+WAIC(m6M3.30)
+```
+
+```{r}
+WAIC(m6M3.20)
+```
+
+### '6'M4
+What happens to the effective number of parameters, as measured by DIC or WAIC, as a prior
+becomes more concentrated? Why? Perform some experiments, if you are not sure.
+
+I think that more concentrated means more specific (less flat).  the effective number of parameters will decrease, because the strong prior will automatically constrain the values of the 'unnecessary' parameters.
+
+### '6'M5
+
+Why do informative priors reduce overfitting?
+
+Kind of explained above.  If we have a strong priors, the data will have less effect on the posterior distribution. 
+
+### '6'M6
+
+Why to informative priors result in underfitting?
+
+Also already touched on.  If priors are very strong, the data just can't sway the outcome, the posterior, very much.  This can lead to information being discarded.
+
+
+"6"M1 - "6"M6

@@ -14,12 +14,12 @@ directed acyclic gaffes (!)  put error into model; residual confounding.
 _Video: Ulysses_ Compass https://youtu.be/0Jc6Kgw5qc0 (you may have already watched the first half of this)
 starts at minute 43 ish
 
-overfitting  - learning too muchf rom the data.  fit well, but predict worse.
+overfitting  - learning too  much from the data.  fit well, but predict worse.
 (classic is polynomial regression - wiggles aroudn like carzy when drop out any one point)
 
-underfitting  - learning to littl from the data.  fit and predict poorly.
+underfitting  - learning too little from the data.  fit and predict poorly.
 
-fit model, dropping out one data point at a time.  insenstiive to exact sample - mayb too little fitting.
+fit model, dropping out one data point at a time.  insenstiive to exact sample - maybe too little fitting.
 
 (* adding parameters improves fit to sample, although not true of multilevel models & other types)
 
@@ -121,10 +121,30 @@ m7.1 <- quap(
     b ~ dnorm( 0 , 10 ),
     log_sigma ~ dnorm( 0 , 1 )
 ), data=d )
+summary(d)
+```
+
+```
+##         species      brain             mass          mass_std      
+##  afarensis  :1   Min.   : 438.0   Min.   :34.50   Min.   :-1.0087  
+##  africanus  :1   1st Qu.: 486.5   1st Qu.:36.25   1st Qu.:-0.8482  
+##  boisei     :1   Median : 612.0   Median :41.50   Median :-0.3668  
+##  ergaster   :1   Mean   : 713.7   Mean   :45.50   Mean   : 0.0000  
+##  habilis    :1   3rd Qu.: 811.5   3rd Qu.:54.50   3rd Qu.: 0.8253  
+##  rudolfensis:1   Max.   :1350.0   Max.   :61.00   Max.   : 1.4214  
+##  sapiens    :1                                                     
+##    brain_std     
+##  Min.   :0.3244  
+##  1st Qu.:0.3604  
+##  Median :0.4533  
+##  Mean   :0.5287  
+##  3rd Qu.:0.6011  
+##  Max.   :1.0000  
+## 
 ```
 ***why the exp(log)??***
 
-Rsq tells us 'proportion of variance "explained" by the model'.  
+R-sq tells us 'proportion of variance "explained" by the model'.  
 compute posterior predictive distribution for each observation.  then get residuals, and variances.
 
 code 7.4
@@ -132,6 +152,27 @@ code 7.4
 ```r
 set.seed(12)
 s <- sim( m7.1 )  # this computes posterior predictive distribution for each observation.  
+summary(s)
+```
+
+```
+##        V1                V2                V3                V4         
+##  Min.   :-0.4091   Min.   :-0.9933   Min.   :-0.3203   Min.   :-0.6172  
+##  1st Qu.: 0.2603   1st Qu.: 0.2320   1st Qu.: 0.2215   1st Qu.: 0.3482  
+##  Median : 0.3875   Median : 0.3778   Median : 0.3619   Median : 0.4742  
+##  Mean   : 0.3927   Mean   : 0.3734   Mean   : 0.3621   Mean   : 0.4734  
+##  3rd Qu.: 0.5242   3rd Qu.: 0.5175   3rd Qu.: 0.5037   3rd Qu.: 0.6001  
+##  Max.   : 1.2551   Max.   : 1.2331   Max.   : 1.0404   Max.   : 1.2710  
+##        V5                V6                V7         
+##  Min.   :-0.2542   Min.   :-0.1422   Min.   :-0.1189  
+##  1st Qu.: 0.5296   1st Qu.: 0.6117   1st Qu.: 0.5054  
+##  Median : 0.6769   Median : 0.7771   Median : 0.6411  
+##  Mean   : 0.6739   Mean   : 0.7738   Mean   : 0.6446  
+##  3rd Qu.: 0.8091   3rd Qu.: 0.9155   3rd Qu.: 0.7700  
+##  Max.   : 1.5078   Max.   : 1.6124   Max.   : 1.3955
+```
+
+```r
 # see figure 3.6 on page 66 for explanation
 r <- apply(s,2,mean) - d$brain_std  # r is residual
 resid_var <- var2(r) # var2 is actual empirical variance
@@ -275,12 +316,37 @@ code 7.13
 
 ```r
 p <- c(0.3, 0.7)
-
 -sum(p*log(p))  # this is the entropy value.  this quantifies our uncertainty
 ```
 
 ```
 ## [1] 0.6108643
+```
+
+```r
+# 0.61
+
+p <- c(0.5, 0.5)
+-sum(p*log(p))
+```
+
+```
+## [1] 0.6931472
+```
+
+```r
+# 0.69
+
+p <- c(0.95, 0.05)
+-sum(p*log(p))
+```
+
+```
+## [1] 0.1985152
+```
+
+```r
+# 0.20
 ```
 maxent = maximum entropy = family of techniques to find probabliliyt distributions more consistent with our state of knowledge.  
 
@@ -295,7 +361,7 @@ can use this to contrast different approximations to p.  want to minimize diverg
 K-L divergence (above) is distance of model from target
 can estimate this divergence using deviance
 
-need to compare the average log-probabilities of the two models in question.  
+***need to compare the average log-probabilities of the two models in question.***  
 
 code 7.14
 
@@ -305,12 +371,52 @@ lppd( m7.1, n=1e4)
 ```
 
 ```
-## [1]  0.6098667  0.6483437  0.5496093  0.6234933  0.4648142  0.4347604
-## [7] -0.8444629
+## [1]  0.6098669  0.6483439  0.5496093  0.6234935  0.4648144  0.4347605
+## [7] -0.8444634
 ```
-
 lppd = log pointwise predictive density.  
 sum them up to get total log-prob score for model and data
+
+code 7.15
+
+```r
+set.seed(1) 
+logprob <- sim( m7.1 , ll=TRUE , n=1e4 )
+n <- ncol(logprob)
+ns <- nrow(logprob)
+f <- function( i ) log_sum_exp( logprob[,i] ) - log(ns)
+( lppd <- sapply( 1:n , f ) )
+```
+
+```
+## [1]  0.6098669  0.6483439  0.5496093  0.6234935  0.4648144  0.4347605
+## [7] -0.8444634
+```
+
+```r
+log(1) # 0
+```
+
+```
+## [1] 0
+```
+
+```r
+log(0.001) # -6.9
+```
+
+```
+## [1] -6.907755
+```
+
+```r
+exp(log(0.001)) # 0.001
+```
+
+```
+## [1] 0.001
+```
+
 
 7.2.5  
 scoring the right data
@@ -333,9 +439,9 @@ _Problems: 7E1 - 7E4_
 
 **7E1**
 the three motivating criteria that define information entropy.  see p 202
-1. we want the relationship between probability and uncertainty to be continuous.  this way, small changes in probability don't cause big changes in undertainty.
+1. we want the relationship between probability and uncertainty to be continuous.  this way, small changes in probability don't cause big changes in uncertainty.
 2. uncertainty increases with the number of different possible outcomes.
-3. uncertainty measurements can be added together so that subsets of conditions always add up so that total uncertainty is unchanged
+3. uncertainty measurements can be added together so that subsets of conditions always add up so that total uncertainty is constant
 
 **7E2**
 What is the entropy of a coin that comes up heads 70% of the time?
