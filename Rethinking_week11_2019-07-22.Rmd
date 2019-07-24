@@ -1,0 +1,575 @@
+---
+title: "Rethinking_week11_2019-07-22.Rmd"
+author: "Stacey Harmer"
+date: "7/22/2019"
+output: 
+  html_document: 
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Finish reading chapter 7.5
+p 221
+
+Then do the problems at https://github.com/rmcelreath/statrethinking_winter2019/blob/master/homework/week04.pdf
+
+## Video: 08-Jan 18: Model Comparison 
+https://www.youtube.com/watch?v=gjrsYDJbRh0&feature=youtu.be
+
+## ch 7.5
+fungus example p 168 (now on page 222)
+
+code 6.14
+```{r}
+library(rethinking)
+
+set.seed(71)
+# number of plants
+N <- 100
+# simulate initial heights
+h0 <- rnorm(N,10,2)
+# assign treatments and simulate fungus and growth
+treatment <- rep( 0:1 , each=N/2 )
+fungus <- rbinom( N , size=1 , prob=0.5 - treatment*0.4 )
+h1 <- h0 + rnorm(N, 5 - 3*fungus)
+# compose a clean data frame
+d <- data.frame( h0=h0 , h1=h1 , treatment=treatment , fungus=fungus )
+
+precis(d)
+
+```
+code 6.15, 6.16
+```{r}
+sim_p <- rlnorm( 1e4 , 0 , 0.25 ) 
+precis( data.frame(sim_p) )
+
+m6.6 <- quap( 
+  alist(
+    h1 ~ dnorm( mu , sigma ),
+    mu <- h0*p,
+    p ~ dlnorm( 0 , 0.25 ),
+    sigma ~ dexp( 1 )
+    ), data=d )
+
+precis(m6.6)
+```
+
+code 6.17
+```{r}
+m6.7 <- quap(
+  alist(
+    h1 ~ dnorm( mu , sigma ),
+    mu <- h0 * p,
+    p <- a + bt*treatment + bf*fungus,
+    a ~ dlnorm( 0 , 0.2 ) ,
+    bt ~ dnorm( 0 , 0.5 ),
+    bf ~ dnorm( 0 , 0.5 ),
+    sigma ~ dexp( 1 )
+    ), data=d )
+precis(m6.7)
+```
+code 6.18
+```{r}
+m6.8 <- quap( 
+  alist(
+    h1 ~ dnorm( mu , sigma ),
+    mu <- h0 * p,
+    p <- a + bt*treatment,
+    a ~ dlnorm( 0 , 0.2 ),
+    bt ~ dnorm( 0 , 0.5 ),
+    sigma ~ dexp( 1 )
+    ), data=d )
+precis(m6.8)
+```
+
+now compare these models
+
+code 7.28
+
+```{r}
+set.seed(11)
+WAIC( m6.7 ) # both treatment and fungus in model
+```
+
+code 7.27
+```{r}
+set.seed(77)
+compare( m6.6 , m6.7 , m6.8 )
+```
+
+now compute SE of the differnece between two models
+
+```{r}
+set.seed(91) 
+waic_m6.7 <- WAIC( m6.7 , pointwise=TRUE )
+waic_m6.8 <- WAIC( m6.8 , pointwise=TRUE )
+n <- length(waic_m6.7)  # what is this for?  
+diff_m6.7_m6.8 <- waic_m6.7 - waic_m6.8
+```
+
+Something got left out here, it seems
+
+```{r}
+plot(compare(m6.6, m6.7, m6.8))
+```
+
+Filled poitns are in sample deviance, open points are WAIC values. lines are SE of each WAIC.  Line with triangle is SE of differnece in WAIC between models.
+
+code 7.31
+```{r}
+set.seed(92)
+waic_m6.6 <- WAIC( m6.6 , pointwise=TRUE )
+diff_m6.6_m6.8 <- waic_m6.6 - waic_m6.8
+sqrt( n*var( diff_m6.6_m6.8 ) )
+```
+or
+
+```{r}
+set.seed(93)
+compare( m6.6 , m6.7 , m6.8 )@dSE
+```
+
+```{r}
+precis(m6.8) # model with treatment only
+plot(precis(m6.8))
+
+```
+
+### 7.5.2   Cebus
+Comparing posterior predictions to raw data
+
+code 7.33
+```{r}
+data("Primates301")
+d <- Primates301
+
+?Primates301
+```
+
+Model longevity on th elog of body mass and brain volume
+
+code 7.34
+```{r}
+d$log_L <- scale(log(d$longevity))
+d$log_B <- scale(log(d$brain))
+d$log_M <- scale(log(d$body))
+```
+
+Count the missing values
+
+```{r}
+sapply( d[, c("log_L", "log_B", "log_M")], function(x) sum(is.na(x)))
+
+```
+
+Never never never compare models based on different numbers of observations!
+
+```{r}
+d2 <- d[ complete.cases(d$log_L, d$log_M, d$log_B) ,]
+nrow(d2)
+```
+
+code 7.37
+```{r}
+
+m7.8 <- quap( 
+  alist(
+    log_L ~ dnorm( mu , sigma ),
+    mu <- a + bM*log_M + bB*log_B,
+    a ~ dnorm(0,0.1),
+    bM ~ dnorm(0,0.5),
+    bB ~ dnorm(0,0.5),
+    sigma ~ dexp(1)
+    ) , data=d2 )
+
+```
+
+
+two simpler models
+code 7.38
+
+```{r}
+m7.9 <- quap( 
+  alist(
+    log_L ~ dnorm( mu , sigma ),
+    mu <- a + bB*log_B,
+    a ~ dnorm(0,0.1),
+    bB ~ dnorm(0,0.5),
+    sigma ~ dexp(1)
+    ) , data=d2 )
+# brain only
+
+
+m7.10 <- quap(
+  alist(
+    log_L ~ dnorm( mu , sigma ),
+    mu <- a + bM*log_M,
+    a ~ dnorm(0,0.1),
+    bM ~ dnorm(0,0.5),
+    sigma ~ dexp(1)
+    ) , data=d2 )
+
+# body only
+```
+
+compare
+
+```{r}
+
+set.seed(301)
+compare(m7.8, m7.9, m7.10)
+
+```
+
+```{r}
+plot(compare(m7.8, m7.9, m7.10))
+
+```
+
+Now, compare posterior distributions
+
+```{r}
+
+plot( coeftab( m7.8 , m7.9 , m7.10 ) , pars=c("bM","bB") )
+
+```
+
+model 7.8 is weird because of colinearity between body mass and brain size
+
+```{r}
+cor(d2$log_B, d2$log_M)
+```
+
+```{r}
+plot(d2$log_B, d2$log_M)
+```
+
+Whoa! 
+see p 229 for preview of homework
+
+"Widely Applicable Information Criterion (WAIC) makes no assumption about the
+shape of the posterior.107 It provides an approximation of the out-of-sample deviance that
+converges to the leave-one-out cross-validation approximation in a large sample"
+
+code 7.43
+
+```{r}
+waic_m7.8 <- WAIC( m7.8 , pointwise=TRUE )
+waic_m7.9 <- WAIC( m7.9 , pointwise=TRUE )
+
+str(waic_m7.8)
+```
+
+plot pointwise differneces between the models
+
+code 7.44
+```{r}
+# compute point scaling
+x <- d2$log_B - d2$log_M
+x <- x - min(x)
+x <- x / max(x)  # this is now proportional
+
+# draw the plot
+plot( waic_m7.8 - waic_m7.9 , d2$log_L ,
+      xlab="pointwise difference in WAIC" , ylab="log longevity (std)" , pch=21 ,
+
+      col=col.alpha("black",0.8) , cex=1+x , lwd=2 , bg=col.alpha(rangi2,0.4) )
+abline( v=0 , lty=2 )
+abline( h=0 , lty=2 )
+
+# why did that plot command work??  
+## note x was used to determine size of points
+
+```
+
+OK, what if brain size is outcome of both longevity and body mass?
+
+code 7.45
+
+```{r}
+m7.11 <- quap(
+  alist(
+    log_B ~ dnorm( mu , sigma ),
+    mu <- a + bM*log_M + bL*log_L,
+    a ~ dnorm(0,0.1),
+    bM ~ dnorm(0,0.5),
+    bL ~ dnorm(0,0.5),
+    sigma ~ dexp(1)
+  ) , data=d2 )
+
+precis( m7.11 )
+
+
+```
+
+```{r}
+plot(precis(m7.11))
+```
+
+## Problems
+
+### 1.  Birb populations.
+
+#### 1A.  compute the entropy of birb populations
+p 218 - information entropy.  it is higher for islands with more equal populations of the bird species.
+avg log prob of an event.  H is  
+
+```{r}
+
+isl.1 <- rep(.2, 5)
+isl.2 <- c(0.8, 0.1, 0.05, 0.025, 0.025)
+isl.3 <- c(0.05, 0.15, 0.7, 0.05, 0.05)
+
+-sum(isl.1*log(isl.1))
+-sum(isl.2*log(isl.2))
+-sum(isl.3*log(isl.3))
+```
+
+OK, as predicted, island 1 has the highest entropy (equal chance of any of the birbs).  island 3 has slightly higher entropy than island 2, because island 2 has one very dominant birb species
+
+#### 1B.  use each island's birb distirbution to predict hte other two
+
+I believe island 1 will be the best predictor for the other two islands.  
+
+OK, use island 1 to compute Dkl for the other islands
+```{r}
+# first, isl2 is the target and isl1 the model
+-sum(isl.2 * (log(isl.1) - log(isl.2)))  ## 0.9
+
+# then, isl3 is the target and isl1 the model
+-sum(isl.3 * (log(isl.1) - log(isl.3)))  ## 0.62
+
+```
+
+Now, use island 2 to predict the other two targets.  I expect Dkl to be larger
+
+```{r}
+# first, isl1 is the target and isl2 the model
+-sum(isl.1 * (log(isl.2) - log(isl.1)))  ## 0.97
+
+# then, isl3 is the target and isl2 the model
+-sum(isl.3 * (log(isl.2) - log(isl.3)))  ## 1.83
+
+```
+So island 2 is a much worse predictor for island 3 than it is for island 1.  Makes sense
+
+Last, island 3 as predictor for hte other two islands
+
+```{r}
+# first, isl1 is the target and isl3 the model
+-sum(isl.1 * (log(isl.3) - log(isl.1)))  ## 0.64
+
+# then, isl2 is the target and isl3 the model
+-sum(isl.2 * (log(isl.3) - log(isl.2)))  ## 2
+
+```
+
+OK, why is island 3 a better predictor of island 1 than island 2 is?  Makes sense, because Birb A really dominates on island 2 more than Birb C does on island 3.
+
+In general, island 1 is best preditor.  But not as different as I expected.
+
+### 2.  WAIC, for models 6.9 and 6.10
+
+First, load data
+```{r}
+library(rethinking)
+d_hap <- sim_happiness( seed=1977 , N_years=1000 )
+precis(d_hap)
+```
+
+
+Scale age range (from 18 to 65)
+```{r}
+d2_hap <- d_hap[ d_hap$age>17 , ] # only adults
+d2_hap$A <- ( d2_hap$age - 18 ) / ( 65 - 18 )
+```
+
+
+```{r}
+d2_hap$mid <- d2_hap$married + 1
+
+m6.9 <- quap(
+  alist(
+    happiness ~ dnorm( mu , sigma ),
+    mu <- a[mid] + bA*A,
+    a[mid] ~ dnorm( 0 , 1 ),
+    bA ~ dnorm( 0 , 2 ),
+    sigma ~ dexp(1)
+    ) , data=d2_hap )
+precis(m6.9,depth=2)
+```
+
+```{r}
+plot(precis(m6.9, depth = 2))
+```
+
+Age negatively associated with happiness
+
+Now, model without marraige
+```{r}
+m6.10 <- quap(
+  alist(
+    happiness ~ dnorm( mu , sigma ),
+    mu <- a + bA*A,
+    a ~ dnorm( 0 , 1 ),
+    bA ~ dnorm( 0 , 2 ),
+    sigma ~ dexp(1)
+    ) , data=d2_hap )
+precis(m6.10)
+
+```
+
+```{r}
+plot(precis(m6.10))
+```
+Now compare these models, using WAIC
+
+```{r}
+
+compare(m6.9, m6.10)
+
+```
+
+This simple analysis tells me that WAIC thinks model 9 is better, by quite a few units.  
+
+But recall the data is simulated; marriage is a common conseuqence of both age and happiness.  This means marriage status is a collider.  If it is included in teh model, it induces an association between age and happiness. (Recall happier people are more likely to be married, and that older people are more likely to be married. )
+
+If we know both age and marriage status, we are more likely to be able to predict happiness (young married people are on average happier than young unmarried people).  So the model with marriage and age predicts better.  But the collider status of marriage means we can't conclude causality.
+
+
+### 3.  urban foxes.  
+
+make models
+(1) avgfood + groupsize + area
+(2) avgfood + groupsize
+(3) groupsize + area
+(4) avgfood
+(5) area
+
+```{r}
+library(rethinking)
+data(foxes)
+fox <- foxes
+```
+
+First, scale the data
+```{r}
+fox$F <- scale(fox$avgfood)
+fox$G <- scale(fox$groupsize)
+fox$A <- scale(fox$area)
+fox$W <- scale(fox$weight)
+```
+
+(1) avgfood + groupsize + area
+
+```{r}
+fox.m1 <- quap(
+  alist(
+    W ~ dnorm(mu, sigma),
+    mu <- beta.area*A + beta.food*F + beta.group*G, 
+    beta.area ~ dnorm(0, 0.5),
+    beta.food ~ dnorm(0, 0.5),
+    beta.group ~ dnorm(0, 0.5),
+    sigma ~ dexp(1)
+  ),
+  data = fox)
+
+precis(fox.m1)
+
+plot(precis(fox.m1))
+```
+
+(2) avgfood + groupsize
+
+```{r}
+fox.m2 <- quap(
+  alist(
+    W ~ dnorm(mu, sigma),
+    mu <-  beta.food*F + beta.group*G, 
+    beta.food ~ dnorm(0, 0.5),
+    beta.group ~ dnorm(0, 0.5),
+    sigma ~ dexp(1)
+  ),
+  data = fox)
+
+precis(fox.m2)
+
+plot(precis(fox.m2))
+```
+
+
+
+(3) groupsize + area
+
+```{r}
+fox.m3 <- quap(
+  alist(
+    W ~ dnorm(mu, sigma),
+    mu <- beta.area*A +  beta.group*G, 
+    beta.area ~ dnorm(0, 0.5),
+    beta.group ~ dnorm(0, 0.5),
+    sigma ~ dexp(1)
+  ),
+  data = fox)
+
+precis(fox.m3)
+
+plot(precis(fox.m3))
+```
+
+(4) avgfood
+
+```{r}
+fox.m4 <- quap(
+  alist(
+    W ~ dnorm(mu, sigma),
+    mu <- beta.food*F , 
+    beta.food ~ dnorm(0, 0.5),
+    sigma ~ dexp(1)
+  ),
+  data = fox)
+
+precis(fox.m4)
+
+plot(precis(fox.m4))
+```
+
+(5) area
+
+```{r}
+fox.m5 <- quap(
+  alist(
+    W ~ dnorm(mu, sigma),
+    mu <- beta.area*A , 
+    beta.area ~ dnorm(0, 0.5),
+    sigma ~ dexp(1)
+  ),
+  data = fox)
+
+precis(fox.m5)
+
+plot(precis(fox.m5))
+```
+
+So it looks like area alone, or food alone, aren't great predictors
+
+Now comare the WAIC scores
+
+```{r}
+compare(fox.m1, fox.m2, fox.m3, fox.m4, fox.m5)
+```
+
+WAIC likes the most complex model best. but models 1, 3, and 2 are all very similar to each other in terms of WAIC scores.  And models 4 and 5 are indistinguishable from each other. (models 3 and 2 are very close to each other.  REcall that model 3 is group size and area; model 2 is groupsize and food). I bet food and groupsize are corr
+
+```{r}
+cor(fox$G, fox$A)
+
+```
+
+Yes, that is true.
+
+the dSE between models 1 and 2, and between 1 and 3, are greater than the dWAIC scores.  So really WAIC doesn't have strong preferneces for model 1.
+
